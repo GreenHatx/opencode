@@ -252,7 +252,7 @@ export const layer = Layer.effect(
         const file = globalConfigFile()
         if (!existsSync(file)) {
           yield* fs
-            .writeWithDirs(file, JSON.stringify({ $schema: "https://opencode.ai/config.json" }, null, 2))
+            .writeWithDirs(file, JSON.stringify(EnterprisePolicy.defaultConfig(), null, 2))
             .pipe(Effect.catch(() => Effect.void))
         }
       }
@@ -276,7 +276,7 @@ export const layer = Layer.effect(
         )
       }
 
-      return result
+      return EnterprisePolicy.applyConfigDefaults(result)
     })
 
     const [cachedGlobal, invalidateGlobal] = yield* Effect.cachedInvalidateWithTTL(
@@ -584,8 +584,10 @@ export const layer = Layer.effect(
           result.compaction = { ...result.compaction, prune: false }
         }
 
+        const enterpriseConfig = EnterprisePolicy.applyConfigDefaults(result)
+
         return {
-          config: result,
+          config: enterpriseConfig,
           directories,
           deps,
           consoleState: {

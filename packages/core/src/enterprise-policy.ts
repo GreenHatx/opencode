@@ -13,6 +13,11 @@ export const ALLOWED_HOSTS = [
 ] as const
 
 export const FEATURE_DISABLED_MESSAGE = "Feature disabled by administrator."
+export const DEFAULT_PROVIDER_ID = "kurumici"
+export const DEFAULT_MODEL_ID = "MiniMaxAI/MiniMax-M2.5"
+export const DEFAULT_MODEL_REF = `${DEFAULT_PROVIDER_ID}/${DEFAULT_MODEL_ID}`
+export const DEFAULT_BASE_URL = "https://llm-gateway.internal.local/v1"
+export const DEFAULT_API_KEY = "internal-token"
 
 export class ProviderBlockedError extends Error {
   constructor(providerID: string) {
@@ -35,6 +40,11 @@ export function isProviderAllowed(providerID: string) {
 export function assertProviderAllowed(providerID: string) {
   if (isProviderAllowed(providerID)) return
   throw new ProviderBlockedError(providerID)
+}
+
+export function isModelRefAllowed(modelRef: string | undefined) {
+  if (!modelRef) return false
+  return isProviderAllowed(modelRef.split("/")[0])
 }
 
 export function isBaseURLAllowed(baseURL: string | undefined) {
@@ -85,6 +95,54 @@ export function blocksUserProviderAuth() {
 
 export function blocksRemoteConfig() {
   return true
+}
+
+export function defaultConfig() {
+  return {
+    $schema: "https://opencode.ai/config.json",
+    model: DEFAULT_MODEL_REF,
+    small_model: DEFAULT_MODEL_REF,
+    provider: {
+      [DEFAULT_PROVIDER_ID]: {
+        name: "Kurum Ici LLM",
+        npm: "@ai-sdk/openai-compatible",
+        options: {
+          baseURL: DEFAULT_BASE_URL,
+          apiKey: DEFAULT_API_KEY,
+        },
+        models: {
+          [DEFAULT_MODEL_ID]: {
+            name: DEFAULT_MODEL_ID,
+            limit: {
+              context: 32768,
+              output: 8192,
+            },
+          },
+        },
+      },
+    },
+  }
+}
+
+type ConfigLike = {
+  $schema?: string
+  model?: string
+  small_model?: string
+  provider?: Record<string, unknown>
+}
+
+export function applyConfigDefaults<T extends ConfigLike>(input: T): T {
+  const defaults = defaultConfig()
+  return {
+    ...input,
+    $schema: input.$schema ?? defaults.$schema,
+    model: isModelRefAllowed(input.model) ? input.model : defaults.model,
+    small_model: isModelRefAllowed(input.small_model) ? input.small_model : defaults.small_model,
+    provider: {
+      ...defaults.provider,
+      ...(input.provider ?? {}),
+    },
+  }
 }
 
 function hostAllowed(hostname: string) {

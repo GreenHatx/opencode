@@ -304,6 +304,34 @@ it.instance("loads config with defaults when no files exist", () =>
   }),
 )
 
+configIt().effect("seeds enterprise provider defaults when no user config exists", () =>
+  withGlobalConfig({ config: undefined }, ({ dir }) =>
+    withInstanceDir(
+      dir,
+      Effect.gen(function* () {
+        const config = yield* Config.use.get()
+        expect(config.model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
+        expect(config.small_model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
+        expect(config.provider?.kurumici?.options?.baseURL).toBe("https://llm-gateway.internal.local/v1")
+        expect(config.provider?.kurumici?.models?.["MiniMaxAI/MiniMax-M2.5"]).toBeDefined()
+      }),
+    ),
+  ),
+)
+
+configIt().effect("resets blocked configured models to the enterprise default", () =>
+  withGlobalConfig({ config: { model: "openai/gpt-5", small_model: "anthropic/claude-haiku" } }, ({ dir }) =>
+    withInstanceDir(
+      dir,
+      Effect.gen(function* () {
+        const config = yield* Config.use.get()
+        expect(config.model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
+        expect(config.small_model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
+      }),
+    ),
+  ),
+)
+
 it.instance("falls back to generic username when system user info is unavailable", () =>
   Effect.gen(function* () {
     const userInfo = spyOn(os, "userInfo").mockImplementation(() => {
