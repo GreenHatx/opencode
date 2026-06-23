@@ -34,7 +34,6 @@ Allowed hosts:
 - `127.0.0.1`
 - `::1`
 - `llm-gateway.internal.local`
-- `aihub-api.turktelekom.com.tr`
 - `*.internal.local`
 - `*.turktelekom.com.tr`
 
