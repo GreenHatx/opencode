@@ -219,6 +219,33 @@ it.instance(
 )
 
 it.instance(
+  "enterprise policy excludes config providers outside the allowlist",
+  Effect.gen(function* () {
+    const providers = yield* list
+    expect(providers[ProviderV2.ID.openai]).toBeUndefined()
+  }),
+  {
+    config: {
+      provider: {
+        openai: {
+          name: "External OpenAI",
+          npm: "@ai-sdk/openai-compatible",
+          api: "https://api.openai.com/v1",
+          models: {
+            "gpt-4.1": {
+              name: "GPT 4.1",
+              tool_call: true,
+              limit: { context: 128000, output: 4096 },
+            },
+          },
+          options: { apiKey: "external-key" },
+        },
+      },
+    },
+  },
+)
+
+it.instance(
   "filters alpha provider models by default",
   Effect.gen(function* () {
     const providers = yield* list

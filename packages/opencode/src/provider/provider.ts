@@ -31,6 +31,7 @@ import { ModelV2 } from "@opencode-ai/core/model"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderError } from "./error"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 const OPENAI_HEADER_TIMEOUT_DEFAULT = 10_000
 
@@ -1321,6 +1322,7 @@ export const layer = Layer.effect(
         }
 
         function mergeProvider(providerID: ProviderV2.ID, provider: Partial<Info>) {
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) return
           const existing = providers[providerID]
           if (existing) {
             // @ts-expect-error
@@ -1353,6 +1355,7 @@ export const layer = Layer.effect(
           if (!p || !models) continue
 
           const providerID = ProviderV2.ID.make(p.id)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           if (disabled.has(providerID)) continue
 
           const provider = database[providerID]
@@ -1376,6 +1379,7 @@ export const layer = Layer.effect(
 
         // extend database from config
         for (const [providerID, provider] of configProviders) {
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           const existing = database[providerID]
           const parsed: Info = {
             id: ProviderV2.ID.make(providerID),
@@ -1472,6 +1476,7 @@ export const layer = Layer.effect(
         const envs = yield* env.all()
         for (const [id, provider] of Object.entries(database)) {
           const providerID = ProviderV2.ID.make(id)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           if (disabled.has(providerID)) continue
           const apiKey = provider.env.map((item) => envs[item]).find(Boolean)
           if (!apiKey) continue
@@ -1485,6 +1490,7 @@ export const layer = Layer.effect(
         const auths = yield* auth.all().pipe(Effect.orDie)
         for (const [id, provider] of Object.entries(auths)) {
           const providerID = ProviderV2.ID.make(id)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           if (disabled.has(providerID)) continue
           if (provider.type === "api") {
             mergeProvider(providerID, {
@@ -1498,6 +1504,7 @@ export const layer = Layer.effect(
         for (const plugin of plugins) {
           if (!plugin.auth) continue
           const providerID = ProviderV2.ID.make(plugin.auth.provider)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           if (disabled.has(providerID)) continue
 
           const stored = yield* auth.get(providerID).pipe(Effect.orDie)
@@ -1517,6 +1524,7 @@ export const layer = Layer.effect(
 
         for (const [id, fn] of Object.entries(custom(dep))) {
           const providerID = ProviderV2.ID.make(id)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           if (disabled.has(providerID)) continue
           const data = database[providerID]
           if (!data) {
@@ -1536,6 +1544,7 @@ export const layer = Layer.effect(
         // load config - re-apply with updated data
         for (const [id, provider] of configProviders) {
           const providerID = ProviderV2.ID.make(id)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) continue
           const partial: Partial<Info> = { source: "config" }
           if (provider.env) partial.env = provider.env
           if (provider.name) partial.name = provider.name
@@ -1559,6 +1568,10 @@ export const layer = Layer.effect(
 
         for (const [id, provider] of Object.entries(providers)) {
           const providerID = ProviderV2.ID.make(id)
+          if (!EnterprisePolicy.isProviderAllowed(providerID)) {
+            delete providers[providerID]
+            continue
+          }
           if (!isProviderAllowed(providerID)) {
             delete providers[providerID]
             continue
@@ -1621,6 +1634,7 @@ export const layer = Layer.effect(
 
     async function resolveSDK(model: Model, s: State, envs: Record<string, string | undefined>) {
       try {
+        EnterprisePolicy.assertProviderAllowed(model.providerID)
         const provider = s.providers[model.providerID]
         const options = { ...provider.options }
 
@@ -1666,6 +1680,7 @@ export const layer = Layer.effect(
         })
 
         if (baseURL !== undefined) options["baseURL"] = baseURL
+        EnterprisePolicy.assertBaseURLAllowed(baseURL)
         if (options["apiKey"] === undefined && provider.key) options["apiKey"] = provider.key
         if (model.headers)
           options["headers"] = {
@@ -1690,6 +1705,7 @@ export const layer = Layer.effect(
         delete options["headerTimeout"]
 
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
+          EnterprisePolicy.assertRequestURLAllowed(input)
           const fetchFn = customFetch ?? fetch
           const opts = init ?? {}
           const chunkAbortCtl = typeof chunkTimeout === "number" && chunkTimeout > 0 ? new AbortController() : undefined

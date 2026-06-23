@@ -153,7 +153,30 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("get() recovers from a corrupted cache file by fetching a fresh catalog", () =>
+  it.live("get() does not fetch remote model catalog under enterprise policy", () =>
+    Effect.gen(function* () {
+      const state = yield* Ref.make(initialState)
+      const result = yield* Effect.acquireUseRelease(
+        Effect.sync(() => {
+          Flag.OPENCODE_DISABLE_MODELS_FETCH = false
+        }),
+        () =>
+          provided(
+            state,
+            ModelsDev.Service.use((s) => s.get()),
+          ),
+        () =>
+          Effect.sync(() => {
+            Flag.OPENCODE_DISABLE_MODELS_FETCH = true
+          }),
+      )
+      expect(result).toEqual({})
+      const final = yield* Ref.get(state)
+      expect(final.calls).toEqual([])
+    }),
+  )
+
+  it.live("get() does not recover corrupted cache by fetching a remote catalog", () =>
     Effect.gen(function* () {
       yield* writeCacheText("{")
       const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
@@ -171,10 +194,10 @@ describe("ModelsDev Service", () => {
             Flag.OPENCODE_DISABLE_MODELS_FETCH = true
           }),
       )
-      expect(result).toEqual(fixture2)
-      expect(yield* Effect.promise(() => readFile(cacheFile, "utf8"))).toBe(JSON.stringify(fixture2))
+      expect(result).toEqual({})
+      expect(yield* Effect.promise(() => readFile(cacheFile, "utf8").catch(() => ""))).toBe("")
       const final = yield* Ref.get(state)
-      expect(final.calls.length).toBe(1)
+      expect(final.calls).toEqual([])
     }),
   )
 
@@ -215,7 +238,7 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("refresh(true) fetches via HttpClient and updates the cache", () =>
+  it.live("refresh(true) is a no-op under enterprise policy", () =>
     Effect.gen(function* () {
       yield* writeCache(fixture)
       const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
@@ -230,11 +253,9 @@ describe("ModelsDev Service", () => {
         }),
       )
       expect(result.before).toEqual(fixture)
-      expect(result.after).toEqual(fixture2)
+      expect(result.after).toEqual(fixture)
       const final = yield* Ref.get(state)
-      expect(final.calls.length).toBe(1)
-      expect(final.calls[0].url).toContain("/api.json")
-      expect(final.calls[0].userAgent).toContain("/cli")
+      expect(final.calls).toEqual([])
     }),
   )
 
@@ -252,7 +273,7 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("refresh(false) fetches when on-disk file is stale", () =>
+  it.live("refresh(false) does not fetch when on-disk file is stale under enterprise policy", () =>
     Effect.gen(function* () {
       // Stale: mtime 10 minutes ago, beyond the 5-minute TTL.
       yield* writeCache(fixture, Date.now() - 10 * 60 * 1000)
@@ -266,8 +287,8 @@ describe("ModelsDev Service", () => {
         }),
       )
       const final = yield* Ref.get(state)
-      expect(final.calls.length).toBe(1)
-      expect(after).toEqual(fixture2)
+      expect(final.calls).toEqual([])
+      expect(after).toEqual(fixture)
     }),
   )
 
@@ -284,9 +305,8 @@ describe("ModelsDev Service", () => {
         }),
       )
       expect(result).toEqual(fixture)
-      // retryTransient retries 5xx, so calls may be > 1.
       const final = yield* Ref.get(state)
-      expect(final.calls.length).toBeGreaterThanOrEqual(1)
+      expect(final.calls).toEqual([])
     }),
   )
 })
