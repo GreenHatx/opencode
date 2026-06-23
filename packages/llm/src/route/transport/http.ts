@@ -4,6 +4,7 @@ import { Auth } from "../auth"
 import { render as renderEndpoint } from "../endpoint"
 import { Framing, type Framing as FramingDef } from "../framing"
 import type { Transport, TransportPrepareInput } from "./index"
+import { EnterprisePolicy } from "../../enterprise-policy"
 import * as ProviderShared from "../../protocols/shared"
 import { mergeJsonRecords, type LLMRequest } from "../../schema"
 
@@ -44,6 +45,11 @@ export const jsonRequestParts = <Body>(input: JsonRequestInput<Body>) =>
       renderEndpoint(input.endpoint, { request: input.request, body: input.body }).toString(),
       input.request.http?.query,
     )
+    yield* Effect.try({
+      try: () => EnterprisePolicy.assertRequestURLAllowed(url),
+      catch: (error) =>
+        ProviderShared.invalidRequest(error instanceof Error ? error.message : "External provider blocked."),
+    })
     const body = yield* bodyWithOverlay(input.body, input.request, input.encodeBody)
     const headers = yield* Auth.toEffect(input.auth)({
       request: input.request,
