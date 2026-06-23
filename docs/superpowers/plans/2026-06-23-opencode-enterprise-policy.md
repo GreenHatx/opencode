@@ -1,8 +1,8 @@
-# OpenCode Enterprise Policy Implementation Plan
+# OpenCode Private Enterprise Policy Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Enforce internal-only provider and host policy in the OpenCode fork.
+**Goal:** Enforce internal-only provider and host policy in OpenCode Private.
 
 **Architecture:** Add a central policy module in `packages/core`, call it from model discovery, config loading, provider runtime construction, auth/UI/CLI flows, and the lower-level LLM transport package.
 

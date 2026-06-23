@@ -1,129 +1,291 @@
-<p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
-</p>
-<p align="center">The open source AI coding agent.</p>
-<p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
-</p>
+# OpenCode Private
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
+OpenCode Private is an internal-only fork of OpenCode for organizations that must keep AI coding traffic inside approved enterprise infrastructure.
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+This fork is designed to route model traffic only through trusted internal gateways, block public LLM providers, disable user-added external credentials, and reduce data leakage risk for enterprise development environments.
 
----
+> OpenCode Private is a fork of OpenCode. It is not affiliated with or endorsed by the upstream OpenCode team.
 
-### Installation
+## Why This Fork Exists
 
-```bash
-# YOLO
-curl -fsSL https://opencode.ai/install | bash
+Standard AI coding tools often support many public providers by default: OpenAI, Anthropic, Gemini, OpenRouter, Groq, Mistral, Cohere, xAI, and similar services.
 
-# Package managers
-npm i -g opencode-ai@latest        # or bun/pnpm/yarn
-scoop install opencode             # Windows
-choco install opencode             # Windows
-brew install anomalyco/tap/opencode # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-bin               # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev branch
+That flexibility is useful for personal development, but risky in corporate environments where prompts, code, logs, file paths, and generated output may contain sensitive information.
+
+OpenCode Private changes the default assumption:
+
+- Public LLM provider access is blocked.
+- Only approved internal providers are allowed.
+- Model discovery does not call public catalogs.
+- User API-key and OAuth onboarding is disabled.
+- Runtime URL checks happen before provider requests leave the process.
+- A default internal model is configured on first launch.
+
+## Current Default Policy
+
+Allowed providers:
+
+- `kurumici`
+- `ollama`
+
+Allowed hosts:
+
+- `localhost`
+- `127.0.0.1`
+- `::1`
+- `llm-gateway.internal.local`
+- `aihub-api.turktelekom.com.tr`
+- `*.internal.local`
+- `*.turktelekom.com.tr`
+
+Default model:
+
+```text
+kurumici/MiniMaxAI/MiniMax-M2.5
 ```
 
-> [!TIP]
-> Remove versions older than 0.1.x before installing.
+Default gateway:
 
-### Desktop App (BETA)
-
-OpenCode is also available as a desktop application. Download directly from the [releases page](https://github.com/anomalyco/opencode/releases) or [opencode.ai/download](https://opencode.ai/download).
-
-| Platform              | Download                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-windows-x64.exe` |
-| Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
+```text
+https://llm-gateway.internal.local/v1
 ```
 
-#### Installation Directory
+## Security Controls
 
-The install script respects the following priority order for the installation path:
+### Provider Allowlist
 
-1. `$OPENCODE_INSTALL_DIR` - Custom installation directory
-2. `$XDG_BIN_DIR` - XDG Base Directory Specification compliant path
-3. `$HOME/bin` - Standard user binary directory (if it exists or can be created)
-4. `$HOME/.opencode/bin` - Default fallback
+OpenCode Private filters the provider registry so only approved providers remain visible and usable.
 
-```bash
-# Examples
-OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
+Blocked examples:
+
+- `openai`
+- `anthropic`
+- `gemini`
+- `openrouter`
+- `groq`
+- `togetherai`
+- `deepseek`
+- `mistral`
+- `cohere`
+- `xai`
+
+### Base URL Validation
+
+Provider base URLs are checked against the enterprise host allowlist.
+
+If a user configures a public provider endpoint such as:
+
+```text
+https://api.openai.com/v1
 ```
 
-### Agents
+the runtime rejects it with an external-provider error before use.
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+### Runtime Egress Guard
 
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
+The lower-level LLM transport validates the final rendered request URL immediately before HTTP/WebSocket transport execution.
 
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
+This matters because provider config is not the only place a URL can appear. The last-mile transport check is the final application-level guard.
 
-Learn more about [agents](https://opencode.ai/docs/agents).
+### Remote Discovery Disabled
 
-### Documentation
+OpenCode Private does not fetch the public `models.dev` model catalog.
 
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).
+`ModelsDev.refresh()` is a no-op under the enterprise policy, and an empty local model cache stays empty instead of being repaired through a public network fetch.
 
-### Contributing
+### External Auth Disabled
 
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
+User-managed provider credentials are disabled:
 
-### Building on OpenCode
+- API-key entry
+- OAuth login
+- provider connect flows
+- remote well-known config auth
+- custom provider UI entry points
 
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
+The user-facing failure message is:
 
----
+```text
+Feature disabled by administrator.
+```
 
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+## Architecture
+
+High-level flow:
+
+```text
+User
+  |
+  v
+OpenCode Private
+  |
+  v
+Enterprise policy checks
+  |
+  v
+Internal LLM gateway
+  |
+  +--> MiniMaxAI/MiniMax-M2.5
+  +--> Other approved local/internal models
+```
+
+Main enforcement points:
+
+- `packages/core/src/enterprise-policy.ts`
+- `packages/core/src/models-dev.ts`
+- `packages/opencode/src/config/config.ts`
+- `packages/opencode/src/provider/provider.ts`
+- `packages/opencode/src/auth/index.ts`
+- `packages/opencode/src/provider/auth.ts`
+- `packages/opencode/src/cli/cmd/providers.ts`
+- `packages/llm/src/enterprise-policy.ts`
+- `packages/llm/src/route/transport/http.ts`
+- Provider selection/settings UI under `packages/app/src/components/`
+
+## Default Configuration
+
+On first launch, OpenCode Private seeds a default internal provider config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "kurumici/MiniMaxAI/MiniMax-M2.5",
+  "small_model": "kurumici/MiniMaxAI/MiniMax-M2.5",
+  "provider": {
+    "kurumici": {
+      "name": "Kurum Ici LLM",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://llm-gateway.internal.local/v1",
+        "apiKey": "internal-token"
+      },
+      "models": {
+        "MiniMaxAI/MiniMax-M2.5": {
+          "name": "MiniMaxAI/MiniMax-M2.5",
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+If `model` or `small_model` points to a blocked provider, OpenCode Private resets it to the enterprise default model.
+
+## Local Development
+
+Install dependencies:
+
+```bash
+bun install
+```
+
+Run typecheck:
+
+```bash
+bun typecheck
+```
+
+Run the CLI from source:
+
+```bash
+bun run --cwd packages/opencode --conditions=browser src/index.ts
+```
+
+Run the web app from source:
+
+```bash
+bun run --cwd packages/app dev
+```
+
+## Verification
+
+Targeted test commands used for the enterprise policy work:
+
+```bash
+cd packages/core
+bun test test/enterprise-policy.test.ts test/models.test.ts
+bun typecheck
+```
+
+```bash
+cd packages/opencode
+bun test test/auth/auth.test.ts test/plugin/auth-override.test.ts -t "Auth|enterprise policy"
+bun test test/provider/provider.test.ts -t "enterprise policy"
+bun test test/config/config.test.ts -t "enterprise provider defaults|resets blocked"
+bun typecheck
+```
+
+```bash
+cd packages/llm
+bun test test/enterprise-policy.test.ts
+bun typecheck
+```
+
+```bash
+cd packages/app
+bun typecheck
+```
+
+The branch also passed the repository pre-push hook:
+
+```text
+bun turbo typecheck
+23 packages successful
+```
+
+## Deployment Checklist
+
+Application-level controls are necessary, but not enough by themselves.
+
+For production use, deploy OpenCode Private with network-level egress controls:
+
+- Allow outbound traffic only to internal model gateways and approved corporate domains.
+- Deny known public LLM provider domains at proxy/firewall level.
+- Route all model traffic through the enterprise LLM gateway.
+- Enforce authentication and rate limits at the gateway.
+- Log model, token usage, latency, user, and request metadata.
+- Add DLP scanning for prompts and responses at the gateway.
+- Monitor rejected provider attempts as security events.
+
+Recommended denylist examples:
+
+- `api.openai.com`
+- `api.anthropic.com`
+- `openrouter.ai`
+- `generativelanguage.googleapis.com`
+- `api.mistral.ai`
+- `api.cohere.ai`
+- `api.groq.com`
+
+## Known Limits
+
+OpenCode Private provides application-level enforcement inside this fork.
+
+It does not replace:
+
+- host firewall rules
+- outbound proxy policy
+- gateway authentication
+- gateway DLP
+- endpoint monitoring
+- secrets management
+
+Users with shell access can still run unrelated tools outside OpenCode Private unless the host and network are also locked down.
+
+## Branch
+
+Current development branch:
+
+```text
+enterprise-policy
+```
+
+Fork:
+
+```text
+https://github.com/GreenHatx/opencode
+```

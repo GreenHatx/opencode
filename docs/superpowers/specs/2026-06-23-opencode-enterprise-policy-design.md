@@ -1,8 +1,8 @@
-# OpenCode Enterprise Policy Design
+# OpenCode Private Enterprise Policy Design
 
 ## Goal
 
-Build a corporate OpenCode fork that can use only approved internal providers and hosts.
+Build OpenCode Private, a corporate OpenCode fork that can use only approved internal providers and hosts.
 
 ## Architecture
 
