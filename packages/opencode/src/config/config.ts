@@ -35,6 +35,7 @@ import { ConfigPlugin } from "./plugin"
 import { ConfigVariable } from "./variable"
 import { Npm } from "@opencode-ai/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 // Custom merge function that concatenates array fields instead of replacing them
 // Keep remeda's deep conditional merge type out of hot config-loading paths; TS profiling showed it dominates here.
@@ -354,6 +355,7 @@ export const layer = Layer.effect(
 
         for (const [key, value] of Object.entries(auth)) {
           if (value.type === "wellknown") {
+            if (EnterprisePolicy.blocksRemoteConfig()) continue
             const url = key.replace(/\/+$/, "")
             authEnv[value.key] = value.token
             const wellknownURL = `${url}/.well-known/opencode`

@@ -16,6 +16,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 export function DialogConnectProvider(props: { provider: string }) {
   const dialog = useDialog()
@@ -43,12 +44,7 @@ export function DialogConnectProvider(props: { provider: string }) {
   const provider = createMemo(
     () => providers.all().get(props.provider) ?? serverSync().data.provider.all.get(props.provider)!,
   )
-  const fallback = createMemo<ProviderAuthMethod[]>(() => [
-    {
-      type: "api" as const,
-      label: language.t("provider.connect.method.apiKey"),
-    },
-  ])
+  const fallback = createMemo<ProviderAuthMethod[]>(() => [])
   const [auth] = createResource(
     () => props.provider,
     async () => {
@@ -358,6 +354,9 @@ export function DialogConnectProvider(props: { provider: string }) {
   }
 
   function MethodSelection() {
+    if (methods().length === 0) {
+      return <div class="text-14-regular text-text-base">{EnterprisePolicy.FEATURE_DISABLED_MESSAGE}</div>
+    }
     return (
       <>
         <div class="text-14-regular text-text-base">

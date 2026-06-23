@@ -6,6 +6,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { optionalOmitUndefined } from "@opencode-ai/core/schema"
 import { Plugin } from "../plugin"
 import { ProviderV2 } from "@opencode-ai/core/provider"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 import { Array as Arr, Effect, Layer, Record, Result, Context, Schema } from "effect"
 
 const When = Schema.Struct({
@@ -129,6 +130,7 @@ export const layer: Layer.Layer<Service, never, Auth.Service | Plugin.Service> =
 
     const decode = Schema.decodeUnknownSync(Methods)
     const methods = Effect.fn("ProviderAuth.methods")(function* () {
+      if (EnterprisePolicy.blocksUserProviderAuth()) return {}
       const hooks = (yield* InstanceState.get(state)).hooks
       return decode(
         Record.map(hooks, (item) =>
@@ -163,6 +165,9 @@ export const layer: Layer.Layer<Service, never, Auth.Service | Plugin.Service> =
     const authorize = Effect.fn("ProviderAuth.authorize")(function* (
       input: { providerID: ProviderV2.ID } & AuthorizeInput,
     ) {
+      if (EnterprisePolicy.blocksUserProviderAuth()) {
+        return yield* new ValidationFailed({ field: "provider", message: EnterprisePolicy.FEATURE_DISABLED_MESSAGE })
+      }
       const { hooks, pending } = yield* InstanceState.get(state)
       const method = hooks[input.providerID].methods[input.method]
       if (method.type !== "oauth") return
@@ -188,6 +193,9 @@ export const layer: Layer.Layer<Service, never, Auth.Service | Plugin.Service> =
     const callback = Effect.fn("ProviderAuth.callback")(function* (
       input: { providerID: ProviderV2.ID } & CallbackInput,
     ) {
+      if (EnterprisePolicy.blocksUserProviderAuth()) {
+        return yield* new ValidationFailed({ field: "provider", message: EnterprisePolicy.FEATURE_DISABLED_MESSAGE })
+      }
       const pending = (yield* InstanceState.get(state)).pending
       const match = pending.get(input.providerID)
       if (!match) return yield* new OauthMissing({ providerID: input.providerID })

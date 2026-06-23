@@ -45,7 +45,7 @@ function layer(directory: string, plugins: string[]) {
 
 describe("plugin.auth-override", () => {
   it.instance(
-    "user plugin overrides built-in github-copilot auth",
+    "enterprise policy hides provider auth methods",
     () =>
       Effect.gen(function* () {
         const tmp = yield* TestInstance
@@ -78,11 +78,8 @@ describe("plugin.auth-override", () => {
           .methods()
           .pipe(Effect.provide(layer(plain, [])), provideInstance(plain))
 
-        const copilot = methods[ProviderV2.ID.make("github-copilot")]
-        expect(copilot).toBeDefined()
-        expect(copilot.length).toBe(1)
-        expect(copilot[0].label).toBe("Test Override Auth")
-        expect(plainMethods[ProviderV2.ID.make("github-copilot")][0].label).not.toBe("Test Override Auth")
+        expect(methods[ProviderV2.ID.make("github-copilot")]).toBeUndefined()
+        expect(plainMethods[ProviderV2.ID.make("github-copilot")]).toBeUndefined()
       }),
     { git: true },
     30000,

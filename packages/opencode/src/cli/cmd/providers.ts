@@ -5,6 +5,7 @@ import { CliError, effectCmd, fail } from "../effect-cmd"
 import { UI } from "../ui"
 import * as Prompt from "../effect/prompt"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 import { map, pipe, sortBy, values } from "remeda"
 import path from "path"
@@ -318,6 +319,9 @@ export const ProvidersLoginCommand = effectCmd({
         type: "string",
       }),
   handler: Effect.fn("Cli.providers.login")(function* (args) {
+    if (EnterprisePolicy.blocksUserProviderAuth()) {
+      return yield* fail(EnterprisePolicy.FEATURE_DISABLED_MESSAGE)
+    }
     const authSvc = yield* Auth.Service
 
     UI.empty()

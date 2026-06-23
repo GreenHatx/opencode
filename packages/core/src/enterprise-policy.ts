@@ -12,6 +12,8 @@ export const ALLOWED_HOSTS = [
   "*.turktelekom.com.tr",
 ] as const
 
+export const FEATURE_DISABLED_MESSAGE = "Feature disabled by administrator."
+
 export class ProviderBlockedError extends Error {
   constructor(providerID: string) {
     super(`Provider not allowed: ${providerID}`)
@@ -74,6 +76,14 @@ export function assertRequestURLAllowed(input: string | URL | { url: string }) {
 }
 
 export function blocksRemoteModelDiscovery() {
+  return true
+}
+
+export function blocksUserProviderAuth() {
+  return true
+}
+
+export function blocksRemoteConfig() {
   return true
 }
 
