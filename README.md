@@ -174,6 +174,69 @@ On first launch, OpenCode Private seeds a default internal provider config:
 
 If `model` or `small_model` points to a blocked provider, OpenCode Private resets it to the enterprise default model.
 
+## Installation
+
+OpenCode Private supports three installation paths.
+
+Install from the private npm package after it has been published:
+
+```bash
+npm install -g opencode-private-ai
+opencode --version
+```
+
+Use the npm install helper when the package name or registry differs:
+
+```bash
+./install-npm --package opencode-private-ai
+./install-npm --package @turktelekom/opencode --registry https://npm.pkg.github.com
+```
+
+Install from fork GitHub releases without npm:
+
+```bash
+OPENCODE_RELEASE_REPO=GreenHatx/opencode \
+OPENCODE_RELEASE_PREFIX=opencode-private \
+./install
+```
+
+Install a local binary built elsewhere:
+
+```bash
+./install --binary /path/to/opencode
+```
+
+## npm Publishing
+
+The fork keeps the CLI command as `opencode`, but the npm package names can be changed with environment variables.
+
+Build platform packages:
+
+```bash
+OPENCODE_BINARY_NPM_PREFIX=opencode-private \
+bun run --cwd packages/opencode script/build.ts
+```
+
+Publish the binary packages and npm meta package:
+
+```bash
+OPENCODE_NPM_PACKAGE=opencode-private-ai \
+OPENCODE_BINARY_NPM_PREFIX=opencode-private \
+OPENCODE_RELEASE_REPO=GreenHatx/opencode \
+OPENCODE_NPM_ACCESS=restricted \
+bun run --cwd packages/opencode script/publish.ts
+```
+
+For a scoped private registry package, set `OPENCODE_NPM_PACKAGE` to the scoped name:
+
+```bash
+OPENCODE_NPM_PACKAGE=@turktelekom/opencode \
+OPENCODE_BINARY_NPM_PREFIX=opencode-private \
+npm config set @turktelekom:registry https://npm.pkg.github.com
+```
+
+The npm meta package runs `postinstall`, selects the matching platform binary package, and exposes the `opencode` command. Keep `OPENCODE_BINARY_NPM_PREFIX` unscoped unless the release pipeline has been adjusted for scoped binary package paths. End users need Node/npm only; Bun is needed on the build/publish machine.
+
 ## Local Development
 
 Install dependencies:

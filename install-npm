@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PACKAGE=${OPENCODE_NPM_PACKAGE:-opencode-private-ai}
+VERSION=${VERSION:-}
+REGISTRY=${NPM_CONFIG_REGISTRY:-}
+
+usage() {
+    cat <<EOF
+OpenCode Private npm installer
+
+Usage: install-npm [options]
+
+Options:
+    -h, --help                Display this help message
+    -p, --package <name>      npm package to install (default: $PACKAGE)
+    -v, --version <version>   Install a specific version
+        --registry <url>      npm registry URL
+
+Examples:
+    ./install-npm
+    ./install-npm --package @turktelekom/opencode
+    ./install-npm --package opencode-private-ai --version 1.17.9
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -p|--package)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --package requires a package name" >&2
+                exit 1
+            fi
+            PACKAGE="$2"
+            shift 2
+            ;;
+        -v|--version)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --version requires a version" >&2
+                exit 1
+            fi
+            VERSION="$2"
+            shift 2
+            ;;
+        --registry)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --registry requires a URL" >&2
+                exit 1
+            fi
+            REGISTRY="$2"
+            shift 2
+            ;;
+        *)
+            echo "Warning: unknown option '$1'" >&2
+            shift
+            ;;
+    esac
+done
+
+if ! command -v npm >/dev/null 2>&1; then
+    echo "Error: npm is required for npm installation." >&2
+    exit 1
+fi
+
+spec="$PACKAGE"
+if [[ -n "$VERSION" ]]; then
+    spec="$PACKAGE@$VERSION"
+fi
+
+args=(install -g "$spec")
+if [[ -n "$REGISTRY" ]]; then
+    args+=(--registry "$REGISTRY")
+fi
+
+npm "${args[@]}"
+
+if ! command -v opencode >/dev/null 2>&1; then
+    echo "Installed $spec, but opencode is not on PATH yet." >&2
+    echo "Check your npm global bin directory: npm bin -g" >&2
+    exit 1
+fi
+
+opencode --version
