@@ -351,7 +351,7 @@ export function NewHome() {
           clearNotifications={clearNotifications}
           unseenCount={unseenCount}
           openSettings={openSettings}
-          openHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+          openHelp={() => platform.openLink("https://support.internal.local/opencode/desktop-feedback")}
           language={language}
         />
 
@@ -423,7 +423,7 @@ export function NewHome() {
         <HomeUtilityNav
           class="flex lg:hidden"
           openSettings={openSettings}
-          openHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+          openHelp={() => platform.openLink("https://support.internal.local/opencode/desktop-feedback")}
           language={language}
         />
       </div>

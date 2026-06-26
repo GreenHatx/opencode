@@ -18,6 +18,7 @@ import type {
 } from "@octokit/webhooks-types"
 import { UI } from "../ui"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 import { InstanceRef } from "@/effect/instance-ref"
 import { SessionShare } from "@/share/session"
 import { Session } from "@/session/session"
@@ -34,6 +35,20 @@ import { Process } from "@/util/process"
 import { parseGitHubRemote } from "@/util/repository"
 import { Effect } from "effect"
 import { extractResponseText, formatPromptTooLargeError } from "./github.shared"
+
+function optionalEnterpriseURL(envName: string) {
+  const value = process.env[envName]
+  if (!value) return undefined
+  const url = value.replace(/\/+$/, "")
+  EnterprisePolicy.assertBaseURLAllowed(url)
+  return url
+}
+
+function requiredEnterpriseURL(envName: string, feature: string) {
+  const url = optionalEnterpriseURL(envName)
+  if (!url) throw new Error(`${feature} is disabled. Set ${envName} to an internal endpoint.`)
+  return url
+}
 
 type GitHubAuthor = {
   login: string
@@ -200,7 +215,7 @@ export const githubInstall = Effect.fn("Cli.github.install")(function* () {
             "",
             "    3. Go to a GitHub issue and comment `/oc summarize` to see the agent in action",
             "",
-            "   Learn more about the GitHub agent - https://opencode.ai/docs/github/#usage-examples",
+            "   Learn more about the GitHub agent - https://docs.internal.local/opencode/github/#usage-examples",
           ].join("\n"),
         )
       }
@@ -320,7 +335,8 @@ export const githubInstall = Effect.fn("Cli.github.install")(function* () {
         s.stop("Installed GitHub app")
 
         async function getInstallation() {
-          return await fetch(`https://api.opencode.ai/get_github_app_installation?owner=${app.owner}&repo=${app.repo}`)
+          const apiBaseUrl = requiredEnterpriseURL("OPENCODE_GITHUB_APP_API_URL", "GitHub app installation lookup")
+          return await fetch(`${apiBaseUrl}/get_github_app_installation?owner=${app.owner}&repo=${app.repo}`)
             .then((res) => res.json())
             .then((data) => data.installation)
         }
@@ -426,7 +442,9 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
         ? (payload as IssueCommentEvent | IssuesEvent).issue.number
         : (payload as PullRequestEvent | PullRequestReviewCommentEvent).pull_request.number
     const runUrl = `/${owner}/${repo}/actions/runs/${runId}`
-    const shareBaseUrl = isMock ? "https://dev.opencode.ai" : "https://opencode.ai"
+    const shareBaseUrl = isMock
+      ? optionalEnterpriseURL("OPENCODE_DEV_SHARE_BASE_URL")
+      : optionalEnterpriseURL("OPENCODE_SHARE_BASE_URL")
 
     let appToken: string
     let octoRest: Octokit
@@ -510,6 +528,7 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
       await subscribeSessionEvents()
       shareId = await (async () => {
         if (share === false) return
+        if (!shareBaseUrl) return
         if (!share && repoData.data.private) return
         await runLocalEffect(sessionShare.share(session.id))
         return session.id.slice(-8)
@@ -572,7 +591,10 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
             const summary = await summarize(response)
             await pushToLocalBranch(summary, uncommittedChanges)
           }
-          const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
+          const hasShared =
+            shareBaseUrl && shareId
+              ? prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
+              : false
           await createComment(`${response}${footer({ image: !hasShared })}`)
           await removeReaction(commentType)
         }
@@ -590,7 +612,10 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
             const summary = await summarize(response)
             await pushToForkBranch(summary, prData, uncommittedChanges)
           }
-          const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
+          const hasShared =
+            shareBaseUrl && shareId
+              ? prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
+              : false
           await createComment(`${response}${footer({ image: !hasShared })}`)
           await removeReaction(commentType)
         }
@@ -686,9 +711,7 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
     }
 
     function normalizeOidcBaseUrl(): string {
-      const value = process.env["OIDC_BASE_URL"]
-      if (!value) return "https://api.opencode.ai"
-      return value.replace(/\/+$/, "")
+      return requiredEnterpriseURL("OIDC_BASE_URL", "GitHub app OIDC token exchange")
     }
 
     function isIssueCommentEvent(
@@ -1345,6 +1368,7 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
     function footer(opts?: { image?: boolean }) {
       const image = (() => {
         if (!shareId) return ""
+        if (!shareBaseUrl) return ""
         if (!opts?.image) return ""
 
         const titleAlt = encodeURIComponent(session.title.substring(0, 50))
@@ -1352,7 +1376,8 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
 
         return `<a href="${shareBaseUrl}/s/${shareId}"><img width="200" alt="${titleAlt}" src="https://social-cards.sst.dev/opencode-share/${title64}.png?model=${providerID}/${modelID}&version=${session.version}&id=${shareId}" /></a>\n`
       })()
-      const shareUrl = shareId ? `[opencode session](${shareBaseUrl}/s/${shareId})&nbsp;&nbsp;|&nbsp;&nbsp;` : ""
+      const shareUrl =
+        shareId && shareBaseUrl ? `[opencode session](${shareBaseUrl}/s/${shareId})&nbsp;&nbsp;|&nbsp;&nbsp;` : ""
       return `\n\n${image}${shareUrl}[github run](${runUrl})`
     }
 

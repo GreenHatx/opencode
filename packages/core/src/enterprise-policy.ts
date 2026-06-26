@@ -12,6 +12,8 @@ export const ALLOWED_HOSTS = [
   "*.turktelekom.com.tr",
 ] as const
 
+export const BLOCKED_OPENCODE_CLOUD_HOSTS = ["opencode.ai", "*.opencode.ai"] as const
+
 export const FEATURE_DISABLED_MESSAGE = "Feature disabled by administrator."
 export const DEFAULT_PROVIDER_ID = "kurumici"
 export const DEFAULT_MODEL_ID = "MiniMaxAI/MiniMax-M2.5"
@@ -30,6 +32,13 @@ export class ExternalProviderBlockedError extends Error {
   constructor(hostname: string) {
     super(`External provider blocked: ${hostname}`)
     this.name = "ExternalProviderBlockedError"
+  }
+}
+
+export class OpenCodeCloudBlockedError extends Error {
+  constructor(hostname: string) {
+    super(`OpenCode cloud endpoint blocked: ${hostname}`)
+    this.name = "OpenCodeCloudBlockedError"
   }
 }
 
@@ -57,15 +66,28 @@ export function isBaseURLAllowed(baseURL: string | undefined) {
   }
 }
 
+export function isOpenCodeCloudHostname(hostname: string) {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "")
+  return BLOCKED_OPENCODE_CLOUD_HOSTS.some((blocked) => hostMatches(blocked, normalized))
+}
+
+export function assertOpenCodeCloudURLBlocked(input: string | URL | { url: string }) {
+  const url = typeof input === "string" ? new URL(input) : input instanceof URL ? input : new URL(input.url)
+  const hostname = url.hostname.toLowerCase()
+  if (isOpenCodeCloudHostname(hostname)) throw new OpenCodeCloudBlockedError(hostname)
+}
+
 export function assertBaseURLAllowed(baseURL: string | undefined) {
   if (!baseURL) return
   try {
     const url = new URL(baseURL)
     const hostname = url.hostname.toLowerCase()
+    if (isOpenCodeCloudHostname(hostname)) throw new OpenCodeCloudBlockedError(hostname)
     if (hostAllowed(hostname)) return
     throw new ExternalProviderBlockedError(hostname)
   } catch (error) {
     if (error instanceof ExternalProviderBlockedError) throw error
+    if (error instanceof OpenCodeCloudBlockedError) throw error
     throw new ExternalProviderBlockedError(baseURL)
   }
 }
@@ -99,7 +121,7 @@ export function blocksRemoteConfig() {
 
 export function defaultConfig() {
   return {
-    $schema: "https://opencode.ai/config.json",
+    $schema: "https://schemas.internal.local/opencode/config.json",
     model: DEFAULT_MODEL_REF,
     small_model: DEFAULT_MODEL_REF,
     provider: {
@@ -146,9 +168,11 @@ export function applyConfigDefaults<T extends ConfigLike>(input: T): T {
 }
 
 function hostAllowed(hostname: string) {
-  return ALLOWED_HOSTS.some((allowed) => {
-    if (!allowed.startsWith("*.")) return hostname === allowed
-    const suffix = allowed.slice(1)
-    return hostname.endsWith(suffix)
-  })
+  return ALLOWED_HOSTS.some((allowed) => hostMatches(allowed, hostname))
+}
+
+function hostMatches(pattern: string, hostname: string) {
+  if (!pattern.startsWith("*.")) return hostname === pattern
+  const suffix = pattern.slice(1)
+  return hostname.endsWith(suffix) && hostname.length > suffix.length
 }

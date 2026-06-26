@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
+import { EnterprisePolicy, isOpenCodeCloudHostname } from "@opencode-ai/core/enterprise-policy"
 
 describe("EnterprisePolicy", () => {
   test("allows only approved provider IDs", () => {
@@ -25,8 +25,15 @@ describe("EnterprisePolicy", () => {
     expect(EnterprisePolicy.isBaseURLAllowed("https://api.openai.com/v1")).toBe(false)
     expect(EnterprisePolicy.isBaseURLAllowed("https://api.anthropic.com/v1")).toBe(false)
     expect(EnterprisePolicy.isBaseURLAllowed("https://openrouter.ai/api/v1")).toBe(false)
+    expect(EnterprisePolicy.isBaseURLAllowed("https://opencode.ai/v1")).toBe(false)
+    expect(EnterprisePolicy.isBaseURLAllowed("https://api.opencode.ai/v1")).toBe(false)
+    expect(isOpenCodeCloudHostname("opencode.ai")).toBe(true)
+    expect(isOpenCodeCloudHostname("api.opencode.ai")).toBe(true)
     expect(() => EnterprisePolicy.assertBaseURLAllowed("https://generativelanguage.googleapis.com/v1beta")).toThrow(
       "External provider blocked: generativelanguage.googleapis.com",
+    )
+    expect(() => EnterprisePolicy.assertBaseURLAllowed("https://api.opencode.ai/v1")).toThrow(
+      "OpenCode cloud endpoint blocked: api.opencode.ai",
     )
   })
 })

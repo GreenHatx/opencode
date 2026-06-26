@@ -1,12 +1,11 @@
 import { FSUtil } from "@opencode-ai/core/fs-util"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 import { Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
 import { ProxyUtil } from "../proxy-util"
 
 let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
-
-export const UI_UPSTREAM = new URL("https://app.opencode.ai")
 
 export const csp = (hash = "") =>
   `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src * data:`
@@ -38,7 +37,17 @@ function proxyResponseHeaders(headers: Record<string, string>) {
 }
 
 export function upstreamURL(path: string) {
-  return new URL(path, UI_UPSTREAM).toString()
+  const upstream = uiUpstream()
+  if (!upstream) throw new Error("External UI upstream disabled")
+  return new URL(path, upstream).toString()
+}
+
+function uiUpstream() {
+  const value = process.env.OPENCODE_UI_UPSTREAM
+  if (!value) return undefined
+  const url = new URL(value)
+  EnterprisePolicy.assertBaseURLAllowed(url.toString())
+  return url
 }
 
 export function embeddedUI(disableEmbeddedWebUi: boolean) {
@@ -50,6 +59,10 @@ export function embeddedUI(disableEmbeddedWebUi: boolean) {
 
 function notFound() {
   return HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })
+}
+
+function embeddedUIDisabled() {
+  return HttpServerResponse.jsonUnsafe({ error: "Embedded web UI unavailable" }, { status: 503 })
 }
 
 function embeddedUIResponse(file: string, body: Uint8Array) {
@@ -84,10 +97,12 @@ export function serveUIEffect(
     const path = new URL(request.url, "http://localhost").pathname
 
     if (embeddedWebUI) return yield* serveEmbeddedUIEffect(path, services.fs, embeddedWebUI)
+    const upstream = uiUpstream()
+    if (!upstream) return embeddedUIDisabled()
 
     const response = yield* services.client.execute(
-      HttpClientRequest.make(request.method)(upstreamURL(path), {
-        headers: ProxyUtil.headers(request.headers, { host: UI_UPSTREAM.host }),
+      HttpClientRequest.make(request.method)(new URL(path, upstream).toString(), {
+        headers: ProxyUtil.headers(request.headers, { host: upstream.host }),
         body: requestBody(request),
       }),
     )

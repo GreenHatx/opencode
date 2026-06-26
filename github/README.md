@@ -1,6 +1,6 @@
 # opencode GitHub Action
 
-A GitHub Action that integrates [opencode](https://opencode.ai) directly into your GitHub workflow.
+A GitHub Action that integrates [opencode](https://opencode-private.internal.local) directly into your GitHub workflow.
 
 Mention `/opencode` in your comment, and opencode will execute tasks within your GitHub Actions runner.
 

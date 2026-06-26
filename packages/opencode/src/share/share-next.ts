@@ -19,6 +19,7 @@ import { SessionShareTable } from "@opencode-ai/core/share/sql"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { EventV2 } from "@opencode-ai/core/event"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 const disabled = process.env["OPENCODE_DISABLE_SHARE"] === "true" || process.env["OPENCODE_DISABLE_SHARE"] === "1"
 
@@ -207,7 +208,9 @@ export const layer = Layer.effect(
       const headers: Record<string, string> = {}
       const active = yield* account.active()
       if (Option.isNone(active) || !active.value.active_org_id) {
-        const baseUrl = (yield* cfg.get()).enterprise?.url ?? "https://opncd.ai"
+        const baseUrl = (yield* cfg.get()).enterprise?.url
+        if (!baseUrl) throw new Error("Sharing is disabled. Configure enterprise.url to an internal share endpoint.")
+        EnterprisePolicy.assertBaseURLAllowed(baseUrl)
         return { headers, api: legacyApi, baseUrl } satisfies Req
       }
 
@@ -218,6 +221,7 @@ export const layer = Layer.effect(
 
       headers.authorization = `Bearer ${token.value}`
       headers["x-org-id"] = active.value.active_org_id
+      EnterprisePolicy.assertBaseURLAllowed(active.value.url)
       return { headers, api: consoleApi, baseUrl: active.value.url } satisfies Req
     })
 

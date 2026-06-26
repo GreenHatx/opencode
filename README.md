@@ -147,7 +147,7 @@ On first launch, OpenCode Private seeds a default internal provider config:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://schemas.internal.local/opencode/config.json",
   "model": "kurumici/MiniMaxAI/MiniMax-M2.5",
   "small_model": "kurumici/MiniMaxAI/MiniMax-M2.5",
   "provider": {

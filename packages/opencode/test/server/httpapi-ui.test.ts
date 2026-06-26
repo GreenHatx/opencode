@@ -26,6 +26,7 @@ const testStateLayer = Layer.effectDiscard(
       OPENCODE_SERVER_USERNAME: Flag.OPENCODE_SERVER_USERNAME,
       envPassword: process.env.OPENCODE_SERVER_PASSWORD,
       envUsername: process.env.OPENCODE_SERVER_USERNAME,
+      envUIUpstream: process.env.OPENCODE_UI_UPSTREAM,
     }
 
     yield* Effect.addFinalizer(() =>
@@ -34,6 +35,7 @@ const testStateLayer = Layer.effectDiscard(
         Flag.OPENCODE_SERVER_USERNAME = original.OPENCODE_SERVER_USERNAME
         restoreEnv("OPENCODE_SERVER_PASSWORD", original.envPassword)
         restoreEnv("OPENCODE_SERVER_USERNAME", original.envUsername)
+        restoreEnv("OPENCODE_UI_UPSTREAM", original.envUIUpstream)
       }),
     )
   }),
@@ -183,6 +185,7 @@ function responseText(response: Response) {
 describe("HttpApi UI fallback", () => {
   it.live("serves the web UI through the HTTP API app", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       let proxiedUrl: string | undefined
 
       const response = yield* uiApp({
@@ -198,12 +201,22 @@ describe("HttpApi UI fallback", () => {
       expect(response.status).toBe(200)
       expect(response.headers.get("content-type")).toContain("text/html")
       expect(yield* responseText(response)).toBe("<html>opencode</html>")
-      expect(proxiedUrl).toBe("https://app.opencode.ai/")
+      expect(proxiedUrl).toBe("https://ui.internal.local/")
+    }),
+  )
+
+  it.live("does not proxy the web UI when no internal upstream is configured", () =>
+    Effect.gen(function* () {
+      const response = yield* uiApp({ disableEmbeddedWebUi: true }).request("/")
+
+      expect(response.status).toBe(503)
+      expect(yield* responseText(response)).toBe('{"error":"Embedded web UI unavailable"}')
     }),
   )
 
   it.live("strips upstream transfer encoding headers from proxied assets", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       let proxiedUrl: string | undefined
 
       const response = yield* Effect.gen(function* () {
@@ -243,7 +256,7 @@ describe("HttpApi UI fallback", () => {
       )
 
       expect(response.status).toBe(200)
-      expect(proxiedUrl).toBe("https://app.opencode.ai/assets/app.js")
+      expect(proxiedUrl).toBe("https://ui.internal.local/assets/app.js")
       expect(response.headers.get("content-encoding")).toBeNull()
       expect(response.headers.get("content-length")).not.toBe("999")
       expect(response.headers.get("content-type")).toContain("text/javascript")
@@ -256,6 +269,7 @@ describe("HttpApi UI fallback", () => {
   // causing browsers to fail with `ERR_INVALID_CHUNKED_ENCODING`.
   it.live("strips upstream transfer-encoding header from proxied assets", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       const response = yield* Effect.gen(function* () {
         const fs = yield* FSUtil.Service
         const client = yield* HttpClient.HttpClient
@@ -377,6 +391,7 @@ describe("HttpApi UI fallback", () => {
 
   it.live("accepts auth token for the web UI", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       const response = yield* uiApp({
         password: "secret",
         username: "opencode",
@@ -391,6 +406,7 @@ describe("HttpApi UI fallback", () => {
 
   it.live("accepts basic auth for the web UI", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       const response = yield* uiApp({
         password: "secret",
         username: "opencode",
@@ -405,6 +421,7 @@ describe("HttpApi UI fallback", () => {
 
   it.live("accepts basic auth passwords containing colons for the web UI", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       const response = yield* uiApp({
         password: "sec:ret",
         username: "opencode",
@@ -424,6 +441,7 @@ describe("HttpApi UI fallback", () => {
   // should bypass auth.
   it.live("serves the PWA manifest without auth even when a server password is set", () =>
     Effect.gen(function* () {
+      process.env.OPENCODE_UI_UPSTREAM = "https://ui.internal.local"
       for (const path of ["/site.webmanifest", "/web-app-manifest-192x192.png", "/web-app-manifest-512x512.png"]) {
         const response = yield* uiApp({
           password: "secret",

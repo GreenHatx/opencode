@@ -33,6 +33,20 @@ describe("EnterprisePolicy", () => {
     }),
   )
 
+  it.effect("blocks OpenCode cloud LLM transport hosts before request execution", () =>
+    Effect.gen(function* () {
+      const exit = yield* jsonRequestParts({
+        request: request("https://api.opencode.ai/v1"),
+        endpoint: Endpoint.path("/chat/completions", { baseURL: "https://api.opencode.ai/v1" }),
+        auth: Auth.none,
+        body: { model: "fake-model", messages: [] },
+        encodeBody: JSON.stringify,
+      }).pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+    }),
+  )
+
   it.effect("allows internal LLM transport hosts", () =>
     Effect.gen(function* () {
       const parts = yield* jsonRequestParts({

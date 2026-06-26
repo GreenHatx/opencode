@@ -124,6 +124,37 @@ let shareId: string | undefined
 let exitCode = 0
 type PromptFiles = Awaited<ReturnType<typeof getUserPrompt>>["promptFiles"]
 
+function assertNotOpenCodeCloudURL(value: string) {
+  const hostname = new URL(value).hostname.toLowerCase()
+  if (hostname === "opencode.ai" || hostname.endsWith(".opencode.ai")) {
+    throw new Error(`OpenCode cloud endpoint blocked: ${hostname}`)
+  }
+  if (
+    hostname !== "localhost" &&
+    hostname !== "127.0.0.1" &&
+    hostname !== "::1" &&
+    !hostname.endsWith(".internal.local") &&
+    hostname !== "aihub-api.turktelekom.com.tr" &&
+    !hostname.endsWith(".turktelekom.com.tr")
+  ) {
+    throw new Error(`External endpoint blocked: ${hostname}`)
+  }
+}
+
+function optionalEnterpriseURL(envName: string) {
+  const value = process.env[envName]
+  if (!value) return undefined
+  const url = value.replace(/\/+$/, "")
+  assertNotOpenCodeCloudURL(url)
+  return url
+}
+
+function requiredEnterpriseURL(envName: string, feature: string) {
+  const url = optionalEnterpriseURL(envName)
+  if (!url) throw new Error(`${feature} is disabled. Set ${envName} to an internal endpoint.`)
+  return url
+}
+
 try {
   assertContextEvent("issue_comment", "pull_request_review_comment")
   assertPayloadKeyword()
@@ -149,12 +180,14 @@ try {
   shareId = await (async () => {
     if (useEnvShare() === false) return
     if (!useEnvShare() && repoData.data.private) return
+    if (!useShareUrl()) return
     await client.session.share<true>({ path: session })
     return session.id.slice(-8)
   })()
   console.log("opencode session", session.id)
-  if (shareId) {
-    console.log("Share link:", `${useShareUrl()}/s/${shareId}`)
+  const shareUrl = useShareUrl()
+  if (shareId && shareUrl) {
+    console.log("Share link:", `${shareUrl}/s/${shareId}`)
   }
 
   // Handle 3 cases
@@ -172,7 +205,9 @@ try {
         const summary = await summarize(response)
         await pushToLocalBranch(summary)
       }
-      const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${useShareUrl()}/s/${shareId}`))
+      const shareUrl = useShareUrl()
+      const hasShared =
+        shareId && shareUrl ? prData.comments.nodes.some((c) => c.body.includes(`${shareUrl}/s/${shareId}`)) : false
       await updateComment(`${response}${footer({ image: !hasShared })}`)
     }
     // Fork PR
@@ -184,7 +219,9 @@ try {
         const summary = await summarize(response)
         await pushToForkBranch(summary, prData)
       }
-      const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${useShareUrl()}/s/${shareId}`))
+      const shareUrl = useShareUrl()
+      const hasShared =
+        shareId && shareUrl ? prData.comments.nodes.some((c) => c.body.includes(`${shareUrl}/s/${shareId}`)) : false
       await updateComment(`${response}${footer({ image: !hasShared })}`)
     }
   }
@@ -363,7 +400,9 @@ function useIssueId() {
 }
 
 function useShareUrl() {
-  return isMock() ? "https://dev.opencode.ai" : "https://opencode.ai"
+  return isMock()
+    ? optionalEnterpriseURL("OPENCODE_DEV_SHARE_BASE_URL")
+    : optionalEnterpriseURL("OPENCODE_SHARE_BASE_URL")
 }
 
 async function getAccessToken() {
@@ -374,7 +413,8 @@ async function getAccessToken() {
 
   let response
   if (isMock()) {
-    response = await fetch("https://api.opencode.ai/exchange_github_app_token_with_pat", {
+    const oidcBaseUrl = requiredEnterpriseURL("OIDC_BASE_URL", "GitHub app PAT token exchange")
+    response = await fetch(`${oidcBaseUrl}/exchange_github_app_token_with_pat`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${useEnvMock().mockToken}`,
@@ -383,7 +423,8 @@ async function getAccessToken() {
     })
   } else {
     const oidcToken = await core.getIDToken("opencode-github-action")
-    response = await fetch("https://api.opencode.ai/exchange_github_app_token", {
+    const oidcBaseUrl = requiredEnterpriseURL("OIDC_BASE_URL", "GitHub app OIDC token exchange")
+    response = await fetch(`${oidcBaseUrl}/exchange_github_app_token`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${oidcToken}`,
@@ -823,17 +864,20 @@ async function createPR(base: string, branch: string, title: string, body: strin
 
 function footer(opts?: { image?: boolean }) {
   const { providerID, modelID } = useEnvModel()
+  const baseShareUrl = useShareUrl()
 
   const image = (() => {
     if (!shareId) return ""
+    if (!baseShareUrl) return ""
     if (!opts?.image) return ""
 
     const titleAlt = encodeURIComponent(session.title.substring(0, 50))
     const title64 = Buffer.from(session.title.substring(0, 700), "utf8").toString("base64")
 
-    return `<a href="${useShareUrl()}/s/${shareId}"><img width="200" alt="${titleAlt}" src="https://social-cards.sst.dev/opencode-share/${title64}.png?model=${providerID}/${modelID}&version=${session.version}&id=${shareId}" /></a>\n`
+    return `<a href="${baseShareUrl}/s/${shareId}"><img width="200" alt="${titleAlt}" src="https://social-cards.sst.dev/opencode-share/${title64}.png?model=${providerID}/${modelID}&version=${session.version}&id=${shareId}" /></a>\n`
   })()
-  const shareUrl = shareId ? `[opencode session](${useShareUrl()}/s/${shareId})&nbsp;&nbsp;|&nbsp;&nbsp;` : ""
+  const shareUrl =
+    shareId && baseShareUrl ? `[opencode session](${baseShareUrl}/s/${shareId})&nbsp;&nbsp;|&nbsp;&nbsp;` : ""
   return `\n\n${image}${shareUrl}[github run](${useEnvRunUrl()})`
 }
 

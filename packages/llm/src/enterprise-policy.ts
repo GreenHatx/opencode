@@ -15,6 +15,8 @@ const ALLOWED_HOSTS = [
   "*.turktelekom.com.tr",
 ] as const
 
+const BLOCKED_OPENCODE_CLOUD_HOSTS = ["opencode.ai", "*.opencode.ai"] as const
+
 const normalizeHostname = (hostname: string) => hostname.toLowerCase().replace(/^\[|\]$/g, "")
 
 const wildcardMatches = (pattern: string, hostname: string) => {
@@ -25,7 +27,13 @@ const wildcardMatches = (pattern: string, hostname: string) => {
 
 export const isBaseURLAllowed = (baseURL: string | URL) => {
   const hostname = normalizeHostname(new URL(baseURL).hostname)
+  if (isOpenCodeCloudHostname(hostname)) return false
   return ALLOWED_HOSTS.some((host) => wildcardMatches(host, hostname))
+}
+
+export const isOpenCodeCloudHostname = (hostname: string) => {
+  const normalized = normalizeHostname(hostname)
+  return BLOCKED_OPENCODE_CLOUD_HOSTS.some((host) => wildcardMatches(host, normalized))
 }
 
 export const assertRequestURLAllowed = (input: string | URL) => {

@@ -13,6 +13,7 @@ import { makeRuntime } from "@opencode-ai/core/effect/runtime"
 import semver from "semver"
 import { InstallationChannel, InstallationVersion } from "@opencode-ai/core/installation/version"
 import { NpmConfig } from "@opencode-ai/core/npm-config"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 export type Method = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop" | "choco" | "unknown"
 
@@ -83,6 +84,7 @@ const ChocoPackage = Schema.Struct({
   d: Schema.Struct({ results: Schema.Array(Schema.Struct({ Version: Schema.String })) }),
 })
 const ScoopManifest = NpmPackage
+const DEFAULT_INSTALL_URL = "https://raw.githubusercontent.com/GreenHatx/opencode/enterprise-policy/install"
 
 export interface Interface {
   readonly info: () => Effect.Effect<Info>
@@ -156,7 +158,9 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
 
     const upgradeCurl = Effect.fnUntraced(
       function* (target: string) {
-        const response = yield* httpOk.execute(HttpClientRequest.get("https://opencode.ai/install"))
+        const installURL = process.env.OPENCODE_INSTALL_URL ?? DEFAULT_INSTALL_URL
+        EnterprisePolicy.assertOpenCodeCloudURLBlocked(installURL)
+        const response = yield* httpOk.execute(HttpClientRequest.get(installURL))
         const body = yield* response.text
         const bodyBytes = new TextEncoder().encode(body)
         const shell = yield* upgradeScriptShell()
