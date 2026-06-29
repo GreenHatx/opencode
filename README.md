@@ -92,6 +92,10 @@ OpenCode Private does not fetch the public `models.dev` model catalog.
 
 `ModelsDev.refresh()` is a no-op under the enterprise policy, and an empty local model cache stays empty instead of being repaired through a public network fetch.
 
+### Installation Documentation
+
+For this fork, see [Install This OpenCode Fork](./docs/install-fork.md) to run the `enterprise-policy` source checkout or install a locally built binary.
+
 ### External Auth Disabled
 
 User-managed provider credentials are disabled:
