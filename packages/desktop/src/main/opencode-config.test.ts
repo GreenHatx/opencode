@@ -18,9 +18,8 @@ test("seeds the Windows user opencode config", () => {
 
     expect(filepath).toBe(join(home, ".config", "opencode.json"))
     expect(env.OPENCODE_CONFIG).toBe(filepath)
-    expect(JSON.parse(readFileSync(filepath!, "utf8"))).toEqual({
-      $schema: "https://opencode.ai/config.json",
-    })
+    // Box-out config must not reference any public domain by default.
+    expect(JSON.parse(readFileSync(filepath!, "utf8"))).toEqual({})
   } finally {
     rmSync(home, { recursive: true, force: true })
   }

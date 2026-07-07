@@ -2,6 +2,11 @@ name: build-windows-msi
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp into the CLI/desktop build (defaults to packages/opencode/package.json)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -24,11 +29,24 @@ jobs:
         run: bun install --linker hoisted
         timeout-minutes: 20
 
+      # Resolve a real semver so the binary reports a proper version (not 0.0.0-dev-<timestamp>)
+      # and the auto-updater compares correctly. Uses the workflow input when provided.
+      - name: Resolve version
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./packages/opencode/package.json').version")
+          fi
+          echo "Resolved OPENCODE_VERSION=$VERSION"
+          echo "OPENCODE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - name: Prepare desktop
         run: bun ./scripts/prepare.ts
         working-directory: packages/desktop
         env:
           OPENCODE_CHANNEL: dev
+          OPENCODE_VERSION: ${{ env.OPENCODE_VERSION }}
           OPENCODE_WINDOWS_SIGNING: "false"
           RUST_TARGET: x86_64-pc-windows-msvc
 
@@ -38,6 +56,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
           OPENCODE_CHANNEL: dev
+          OPENCODE_VERSION: ${{ env.OPENCODE_VERSION }}
           OPENCODE_WINDOWS_SIGNING: "false"
 
       - name: Package MSI
@@ -46,6 +65,7 @@ jobs:
         timeout-minutes: 60
         env:
           OPENCODE_CHANNEL: dev
+          OPENCODE_VERSION: ${{ env.OPENCODE_VERSION }}
           OPENCODE_WINDOWS_SIGNING: "false"
           OPENCODE_WINDOWS_TARGETS: msi
 

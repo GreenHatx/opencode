@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-const DEFAULT_CONFIG = {
-  $schema: "https://opencode.ai/config.json",
-}
+// Seed schema only when an internal schema host is configured; default box-out config references no public domain.
+const CONFIG_SCHEMA_URL = process.env["OPENCODE_CONFIG_SCHEMA_URL"] ?? ""
+const DEFAULT_CONFIG: Record<string, string> = CONFIG_SCHEMA_URL ? { $schema: CONFIG_SCHEMA_URL } : {}
 
 type Env = Record<string, string | undefined>
 

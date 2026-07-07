@@ -37,6 +37,10 @@ import { Npm } from "@opencode-ai/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
 
 // Custom merge function that concatenates array fields instead of replacing them
+// Schema URL seeded into user config for editor autocomplete. Defaults to empty so a box-out
+// install never references a public domain; set OPENCODE_CONFIG_SCHEMA_URL to an internal schema host if desired.
+const CONFIG_SCHEMA_URL = process.env["OPENCODE_CONFIG_SCHEMA_URL"] ?? ""
+
 // Keep remeda's deep conditional merge type out of hot config-loading paths; TS profiling showed it dominates here.
 function mergeConfig(target: Info, source: Info): Info {
   return mergeDeep(target, source) as Info
@@ -228,9 +232,9 @@ export const layer = Layer.effect(
       if (!("path" in options)) return data
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
-      if (!data.$schema) {
-        data.$schema = "https://opencode.ai/config.json"
-        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://opencode.ai/config.json",')
+      if (CONFIG_SCHEMA_URL && !data.$schema) {
+        data.$schema = CONFIG_SCHEMA_URL
+        const updated = text.replace(/^\s*\{/, `{\n  "$schema": ${JSON.stringify(CONFIG_SCHEMA_URL)},`)
         yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
       }
       return data
@@ -251,7 +255,7 @@ export const layer = Layer.effect(
         const file = globalConfigFile()
         if (!existsSync(file)) {
           yield* fs
-            .writeWithDirs(file, JSON.stringify({ $schema: "https://opencode.ai/config.json" }, null, 2))
+            .writeWithDirs(file, JSON.stringify(CONFIG_SCHEMA_URL ? { $schema: CONFIG_SCHEMA_URL } : {}, null, 2))
             .pipe(Effect.catch(() => Effect.void))
         }
       }
@@ -266,7 +270,7 @@ export const layer = Layer.effect(
             .then(async (mod) => {
               const { provider, model, ...rest } = mod.default
               if (provider && model) result.model = `${provider}/${model}`
-              result["$schema"] = "https://opencode.ai/config.json"
+              if (CONFIG_SCHEMA_URL) result["$schema"] = CONFIG_SCHEMA_URL
               result = mergeConfig(result, rest)
               await fsNode.writeFile(path.join(Global.Path.config, "config.json"), JSON.stringify(result, null, 2))
               await fsNode.unlink(legacy)
@@ -379,7 +383,7 @@ export const layer = Layer.effect(
                 })
               : {}
             const remoteConfig = mergeConfig(isRecord(wellknown.config) ? wellknown.config : {}, fetchedConfig)
-            if (!remoteConfig.$schema) remoteConfig.$schema = "https://opencode.ai/config.json"
+            if (CONFIG_SCHEMA_URL && !remoteConfig.$schema) remoteConfig.$schema = CONFIG_SCHEMA_URL
             const source = wellknownURL
             const next = yield* loadConfig(
               JSON.stringify(remoteConfig),

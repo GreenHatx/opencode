@@ -318,13 +318,13 @@ it.instance("falls back to generic username when system user info is unavailable
   }),
 )
 
-it.effect("creates global jsonc config with schema when no global configs exist", () =>
+it.effect("creates global jsonc config without a public schema reference by default", () =>
   withGlobalConfig({}, ({ dir }) =>
     Effect.gen(function* () {
       yield* Config.use.get().pipe(provideInstanceEffect(dir))
 
       const content = yield* FSUtil.use.readFileString(path.join(dir, "opencode.jsonc"))
-      expect(content).toContain('"$schema": "https://opencode.ai/config.json"')
+      expect(content).not.toContain("opencode.ai")
     }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
   ),
 )
