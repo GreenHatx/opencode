@@ -25,6 +25,8 @@ const skipInstall = process.argv.includes("--skip-install")
 const sourcemapsFlag = process.argv.includes("--sourcemaps")
 const plugin = createSolidTransformPlugin()
 const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
+const buildOS = process.env.OPENCODE_BUILD_OS ?? process.platform
+const buildArch = process.env.OPENCODE_BUILD_ARCH ?? process.arch
 
 const createEmbeddedWebUIBundle = async () => {
   console.log(`Building Web UI to embed in the binary`)
@@ -117,7 +119,7 @@ const allTargets: {
 
 const targets = singleFlag
   ? allTargets.filter((item) => {
-      if (item.os !== process.platform || item.arch !== process.arch) {
+      if (item.os !== buildOS || item.arch !== buildArch) {
         return false
       }
 

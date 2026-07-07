@@ -22,8 +22,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: windows-2025
+  build-cli:
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
@@ -39,43 +39,31 @@ jobs:
         run: bun install --linker hoisted
         timeout-minutes: 20
 
-      - name: Install Windows native build helper
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $nodeGypRoot = Join-Path $env:RUNNER_TEMP "node-gyp"
-          New-Item -ItemType Directory -Force -Path $nodeGypRoot | Out-Null
-          npm install --prefix $nodeGypRoot --ignore-scripts --package-lock=false node-gyp
-          $nodeGyp = Join-Path $nodeGypRoot "node_modules\node-gyp\bin\node-gyp.js"
-          if (!(Test-Path $nodeGyp)) {
-            throw "node-gyp not found: $nodeGyp"
-          }
-          "npm_config_node_gyp=$nodeGyp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        timeout-minutes: 5
-
-      - name: Build Windows CLI
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $PSNativeCommandUseErrorActionPreference = $true
-          for ($attempt = 1; $attempt -le 3; $attempt++) {
-            try {
-              bun run build --single --baseline --skip-install
-              exit 0
-            } catch {
-              if ($attempt -eq 3) {
-                throw
-              }
-              Write-Warning "Baseline build failed on attempt $attempt; clearing Bun cache and retrying."
-              bun pm cache rm
-              Start-Sleep -Seconds 10
-            }
-          }
+      - name: Build Windows baseline CLI
+        run: bun run build --single --baseline --skip-install
         working-directory: packages/opencode
         timeout-minutes: 60
         env:
           OPENCODE_CHANNEL: dev
           OPENCODE_BINARY_NPM_PREFIX: opencode
+          OPENCODE_BUILD_OS: win32
+          OPENCODE_BUILD_ARCH: x64
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: opencode-private-windows-baseline-cli
+          path: packages/opencode/dist/opencode-windows-x64-baseline/bin/opencode.exe
+
+  build:
+    needs: build-cli
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: opencode-private-windows-baseline-cli
+          path: packages/opencode/dist/opencode-windows-x64-baseline/bin
 
       - name: Install WiX
         shell: pwsh
