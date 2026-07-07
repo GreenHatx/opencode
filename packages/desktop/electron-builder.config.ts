@@ -18,6 +18,7 @@ const legacyDesktopEntryFpm = `${legacyDesktopEntry}=/usr/share/applications/ope
 async function signWindows(configuration: { path: string }) {
   if (process.platform !== "win32") return
   if (process.env.GITHUB_ACTIONS !== "true") return
+  if (process.env.OPENCODE_WINDOWS_SIGNING === "false") return
 
   await execFileAsync(
     "pwsh",

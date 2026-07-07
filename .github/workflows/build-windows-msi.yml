@@ -1,0 +1,51 @@
+name: build-windows-msi
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - uses: ./.github/actions/setup-bun
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Prepare desktop
+        run: bun ./scripts/prepare.ts
+        working-directory: packages/desktop
+        env:
+          OPENCODE_CHANNEL: dev
+          OPENCODE_WINDOWS_SIGNING: "false"
+          RUST_TARGET: x86_64-pc-windows-msvc
+
+      - name: Build desktop
+        run: bun run build
+        working-directory: packages/desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          OPENCODE_CHANNEL: dev
+          OPENCODE_WINDOWS_SIGNING: "false"
+
+      - name: Package MSI
+        run: npx electron-builder --win --x64 --publish never --config electron-builder.config.ts
+        working-directory: packages/desktop
+        timeout-minutes: 60
+        env:
+          OPENCODE_CHANNEL: dev
+          OPENCODE_WINDOWS_SIGNING: "false"
+          OPENCODE_WINDOWS_TARGETS: msi
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: opencode-desktop-windows-x64-msi
+          path: |
+            packages/desktop/dist/*.msi
+            packages/desktop/dist/*.blockmap
