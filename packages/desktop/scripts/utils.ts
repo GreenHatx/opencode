@@ -63,7 +63,11 @@ export async function copyBinaryToSidecarFolder(source: string) {
   await $`mkdir -p ${dir}`
   const dest = windowsify(`${dir}/opencode-cli`)
   await $`cp ${source} ${dest}`
-  if (process.platform === "win32" && process.env.GITHUB_ACTIONS === "true") {
+  if (
+    process.platform === "win32" &&
+    process.env.GITHUB_ACTIONS === "true" &&
+    process.env.OPENCODE_WINDOWS_SIGNING !== "false"
+  ) {
     await $`pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File ../../script/sign-windows.ps1 ${dest}`
   }
   if (process.platform === "darwin") await $`codesign --force --sign - ${dest}`
