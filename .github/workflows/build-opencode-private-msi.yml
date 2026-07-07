@@ -54,7 +54,7 @@ jobs:
         timeout-minutes: 5
 
       - name: Build Windows CLI
-        run: bun run build --single
+        run: bun run build --single --skip-install
         working-directory: packages/opencode
         timeout-minutes: 60
         env:
