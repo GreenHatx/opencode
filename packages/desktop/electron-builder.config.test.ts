@@ -46,3 +46,29 @@ test("keeps a hidden prod launcher for old Linux pins", async () => {
   expect(desktop).toContain("StartupWMClass=ai.opencode.desktop")
   expect(desktop).toContain("NoDisplay=true")
 })
+
+test("keeps NSIS as the default Windows installer target", async () => {
+  const previous = process.env.OPENCODE_WINDOWS_TARGETS
+  delete process.env.OPENCODE_WINDOWS_TARGETS
+
+  const module = await import("./electron-builder.config.ts?windows-default-target")
+  const config = module.default as Configuration
+
+  if (previous === undefined) delete process.env.OPENCODE_WINDOWS_TARGETS
+  else process.env.OPENCODE_WINDOWS_TARGETS = previous
+
+  expect(config.win?.target).toEqual(["nsis"])
+})
+
+test("allows Windows installer targets to be selected from env", async () => {
+  const previous = process.env.OPENCODE_WINDOWS_TARGETS
+  process.env.OPENCODE_WINDOWS_TARGETS = "msi"
+
+  const module = await import("./electron-builder.config.ts?windows-msi-target")
+  const config = module.default as Configuration
+
+  if (previous === undefined) delete process.env.OPENCODE_WINDOWS_TARGETS
+  else process.env.OPENCODE_WINDOWS_TARGETS = previous
+
+  expect(config.win?.target).toEqual(["msi"])
+})
