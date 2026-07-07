@@ -1,6 +1,21 @@
 name: build-opencode-private-msi
 
 on:
+  push:
+    branches:
+      - enterprise-policy
+    paths:
+      - ".github/workflows/build-opencode-private-msi.yml"
+      - "packages/opencode/**"
+      - "packages/core/**"
+      - "packages/tui/**"
+      - "packages/server/**"
+      - "packages/llm/**"
+      - "packages/plugin/**"
+      - "packages/ui/**"
+      - "packages/app/**"
+      - "bun.lock"
+      - "package.json"
   workflow_dispatch:
 
 permissions:
