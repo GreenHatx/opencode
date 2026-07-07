@@ -19,7 +19,7 @@ test("seeds the Windows user opencode config", () => {
     expect(filepath).toBe(join(home, ".config", "opencode.json"))
     expect(env.OPENCODE_CONFIG).toBe(filepath)
     expect(JSON.parse(readFileSync(filepath!, "utf8"))).toEqual({
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://schemas.internal.local/opencode/config.json",
     })
   } finally {
     rmSync(home, { recursive: true, force: true })

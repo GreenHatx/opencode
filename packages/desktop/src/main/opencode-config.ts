@@ -2,8 +2,12 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
+// Seed the config schema from an internal host so a box-out install never references the public
+// opencode.ai domain. Override with OPENCODE_CONFIG_SCHEMA_URL to point at a different internal host.
+const DEFAULT_CONFIG_SCHEMA_URL =
+  process.env["OPENCODE_CONFIG_SCHEMA_URL"] ?? "https://schemas.internal.local/opencode/config.json"
 const DEFAULT_CONFIG = {
-  $schema: "https://opencode.ai/config.json",
+  $schema: DEFAULT_CONFIG_SCHEMA_URL,
 }
 
 type Env = Record<string, string | undefined>
