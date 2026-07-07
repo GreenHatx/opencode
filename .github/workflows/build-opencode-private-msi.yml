@@ -41,6 +41,13 @@ jobs:
           bun install --linker hoisted --os=win32 --cpu=x64
         timeout-minutes: 20
 
+      - name: Resolve version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./packages/opencode/package.json').version")
+          echo "Resolved OPENCODE_VERSION=$VERSION"
+          echo "OPENCODE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - name: Build Windows baseline CLI
         run: bun run build --single --baseline --skip-install
         working-directory: packages/opencode
@@ -85,6 +92,7 @@ jobs:
 
           $msiDir = Join-Path $dist "msi"
           New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
+          $version = (Get-Content "packages\opencode\package.json" | ConvertFrom-Json).version
 
           $shim = Join-Path $msiDir "opencode.cmd"
           @'
@@ -94,7 +102,7 @@ jobs:
           if not exist "%USERPROFILE%\.config" mkdir "%USERPROFILE%\.config" >nul 2>nul
           if not exist "%OPENCODE_CONFIG%" (
             >"%OPENCODE_CONFIG%" echo {
-            >>"%OPENCODE_CONFIG%" echo   "$schema": "https://opencode.ai/config.json"
+            >>"%OPENCODE_CONFIG%" echo   "$schema": "https://schemas.internal.local/opencode/config.json"
             >>"%OPENCODE_CONFIG%" echo }
           )
           "%~dp0opencode-private.exe" %*
@@ -107,7 +115,7 @@ jobs:
             <Package
               Name="OpenCode Private"
               Manufacturer="GreenHatx"
-              Version="1.17.9"
+              Version="$version"
               UpgradeCode="{1F8C375D-6316-4A20-967C-3FA2B098EAA1}"
               Scope="perUser">
               <MajorUpgrade DowngradeErrorMessage="A newer version of OpenCode Private is already installed." />
@@ -142,8 +150,11 @@ jobs:
           "@ | Set-Content -Path $wxs -Encoding utf8
 
           wix build $wxs -arch x64 -out (Join-Path $dist "opencode-private-windows-x64.msi")
+          Copy-Item "packages\opencode\script\uninstall-windows-private.ps1" (Join-Path $dist "uninstall-windows-private.ps1")
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: opencode-private-windows-x64-msi
-          path: packages/opencode/dist/opencode-private-windows-x64.msi
+          path: |
+            packages/opencode/dist/opencode-private-windows-x64.msi
+            packages/opencode/dist/uninstall-windows-private.ps1

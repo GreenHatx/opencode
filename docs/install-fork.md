@@ -222,6 +222,22 @@ export PATH="$HOME/.local/bin:$PATH"
 opencode --version
 ```
 
+## Uninstall the Windows private MSI
+
+Use Windows Settings > Apps for normal removal, or run the release artifact script from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall-windows-private.ps1
+```
+
+For non-interactive removal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall-windows-private.ps1 -Quiet
+```
+
+The script removes the OpenCode Private MSI, the per-user install directory, and user config/data. Pass `-KeepConfig` or `-KeepData` when you need to preserve those files.
+
 ## Maintainer workflow for this checkout
 
 In the local maintainer checkout used for this fork, `origin` may point at upstream and `GreenHatx` may point at the fork:
