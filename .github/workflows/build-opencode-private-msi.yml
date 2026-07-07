@@ -70,12 +70,20 @@ jobs:
           $msiDir = Join-Path $dist "msi"
           New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
 
-          $configSource = Join-Path $msiDir "opencode.json"
+          $shim = Join-Path $msiDir "opencode.cmd"
           @'
-          {
-            "$schema": "https://opencode.ai/config.json"
-          }
-          '@ | Set-Content -Path $configSource -NoNewline -Encoding utf8
+          @echo off
+          setlocal
+          set "OPENCODE_CONFIG=%USERPROFILE%\.config\opencode.json"
+          if not exist "%USERPROFILE%\.config" mkdir "%USERPROFILE%\.config" >nul 2>nul
+          if not exist "%OPENCODE_CONFIG%" (
+            >"%OPENCODE_CONFIG%" echo {
+            >>"%OPENCODE_CONFIG%" echo   "$schema": "https://opencode.ai/config.json"
+            >>"%OPENCODE_CONFIG%" echo }
+          )
+          "%~dp0opencode-private.exe" %*
+          exit /b %ERRORLEVEL%
+          '@ | Set-Content -Path $shim -NoNewline -Encoding ascii
 
           $wxs = Join-Path $msiDir "opencode-private.wxs"
           @"
@@ -99,25 +107,21 @@ jobs:
                 </Directory>
               </StandardDirectory>
 
-              <StandardDirectory Id="UserProfileFolder">
-                <Directory Id="ConfigFolder" Name=".config" />
-              </StandardDirectory>
+            <ComponentGroup Id="OpenCodePrivateComponents">
+              <Component Id="OpenCodeExeComponent" Directory="BinFolder" Guid="{91AE42C0-7B86-4C55-9EA8-C32E12F70E50}">
+                <File Id="OpenCodeExe" Source="$cli" Name="opencode-private.exe" KeyPath="yes" />
+              </Component>
 
-              <ComponentGroup Id="OpenCodePrivateComponents">
-                <Component Id="OpenCodeExeComponent" Directory="BinFolder" Guid="{91AE42C0-7B86-4C55-9EA8-C32E12F70E50}">
-                  <File Id="OpenCodeExe" Source="$cli" Name="opencode.exe" KeyPath="yes" />
-                </Component>
+              <Component Id="OpenCodeShimComponent" Directory="BinFolder" Guid="{5E78A046-51A7-4F52-B904-3CA5FDB71B27}">
+                <File Id="OpenCodeShim" Source="$shim" Name="opencode.cmd" KeyPath="yes" />
+              </Component>
 
-                <Component Id="OpenCodeUserPathComponent" Directory="BinFolder" Guid="{BC789E4E-C7D1-4F1A-B204-6D13EE684475}">
-                  <RegistryValue Root="HKCU" Key="Software\GreenHatx\OpenCodePrivate" Name="PathEntry" Value="1" Type="integer" KeyPath="yes" />
-                  <Environment Id="OpenCodeUserPath" Name="PATH" Value="[BinFolder]" Permanent="no" Part="last" Action="set" System="no" />
-                </Component>
-
-                <Component Id="OpenCodeConfigComponent" Directory="ConfigFolder" Guid="{E9AB1C99-909F-4122-AE61-3CE8034E36B9}" NeverOverwrite="yes">
-                  <File Id="OpenCodeConfig" Source="$configSource" Name="opencode.json" KeyPath="yes" />
-                </Component>
-              </ComponentGroup>
-            </Package>
+              <Component Id="OpenCodeUserPathComponent" Directory="BinFolder" Guid="{BC789E4E-C7D1-4F1A-B204-6D13EE684475}">
+                <RegistryValue Root="HKCU" Key="Software\GreenHatx\OpenCodePrivate" Name="PathEntry" Value="1" Type="integer" KeyPath="yes" />
+                <Environment Id="OpenCodeUserPath" Name="PATH" Value="[BinFolder]" Permanent="no" Part="last" Action="set" System="no" />
+              </Component>
+            </ComponentGroup>
+          </Package>
           </Wix>
           "@ | Set-Content -Path $wxs -Encoding utf8
 
