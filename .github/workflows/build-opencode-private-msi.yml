@@ -54,7 +54,23 @@ jobs:
         timeout-minutes: 5
 
       - name: Build Windows CLI
-        run: bun run build --single --baseline --skip-install
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              bun run build --single --baseline --skip-install
+              exit 0
+            } catch {
+              if ($attempt -eq 3) {
+                throw
+              }
+              Write-Warning "Baseline build failed on attempt $attempt; clearing Bun cache and retrying."
+              bun pm cache rm
+              Start-Sleep -Seconds 10
+            }
+          }
         working-directory: packages/opencode
         timeout-minutes: 60
         env:

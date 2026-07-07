@@ -127,6 +127,10 @@ const targets = singleFlag
         return baselineFlag
       }
 
+      if (baselineFlag) {
+        return false
+      }
+
       // also skip abi-specific builds for the same reason
       if (item.abi !== undefined) {
         return false
