@@ -36,7 +36,9 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install --linker hoisted
+        run: |
+          bun install --linker hoisted
+          bun install --linker hoisted --os=win32 --cpu=x64
         timeout-minutes: 20
 
       - name: Build Windows baseline CLI
