@@ -39,6 +39,10 @@ jobs:
         run: bun install --linker hoisted
         timeout-minutes: 20
 
+      - name: Install Windows native build helper
+        run: bun add --dev node-gyp
+        timeout-minutes: 5
+
       - name: Build Windows CLI
         run: bun run build --single
         working-directory: packages/opencode
