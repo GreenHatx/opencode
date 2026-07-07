@@ -40,7 +40,17 @@ jobs:
         timeout-minutes: 20
 
       - name: Install Windows native build helper
-        run: npm install --no-save --ignore-scripts --package-lock=false node-gyp
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $nodeGypRoot = Join-Path $env:RUNNER_TEMP "node-gyp"
+          New-Item -ItemType Directory -Force -Path $nodeGypRoot | Out-Null
+          npm install --prefix $nodeGypRoot --ignore-scripts --package-lock=false node-gyp
+          $nodeGyp = Join-Path $nodeGypRoot "node_modules\node-gyp\bin\node-gyp.js"
+          if (!(Test-Path $nodeGyp)) {
+            throw "node-gyp not found: $nodeGyp"
+          }
+          "npm_config_node_gyp=$nodeGyp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         timeout-minutes: 5
 
       - name: Build Windows CLI
