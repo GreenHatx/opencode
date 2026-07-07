@@ -7,6 +7,7 @@ import { ensureWindowsUserConfigSeed } from "./opencode-config"
 import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
 import { DEFAULT_SERVER_URL_KEY } from "./store-keys"
+import { ensureWindowsCliShim } from "./windows-cli-shim"
 
 export type HealthCheck = { wait: Promise<void> }
 
@@ -45,6 +46,7 @@ export function setDefaultServerUrl(url: string | null) {
 export function preferAppEnv(userDataPath: string) {
   const shell = process.platform === "win32" ? null : getUserShell()
   ensureWindowsUserConfigSeed()
+  ensureWindowsCliShim()
   Object.assign(process.env, {
     ...(shell ? loadShellEnv(shell, getLogger()) : null),
     OPENCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
