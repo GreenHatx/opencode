@@ -40,7 +40,7 @@ jobs:
         timeout-minutes: 20
 
       - name: Install Windows native build helper
-        run: bun add --dev node-gyp
+        run: npm install --no-save --ignore-scripts --package-lock=false node-gyp
         timeout-minutes: 5
 
       - name: Build Windows CLI
