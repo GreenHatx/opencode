@@ -54,7 +54,7 @@ jobs:
         timeout-minutes: 5
 
       - name: Build Windows CLI
-        run: bun run build --single --skip-install
+        run: bun run build --single --baseline --skip-install
         working-directory: packages/opencode
         timeout-minutes: 60
         env:
@@ -72,7 +72,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $dist = Join-Path $PWD "packages\opencode\dist"
-          $cli = Join-Path $dist "opencode-windows-x64\bin\opencode.exe"
+          $cli = Join-Path $dist "opencode-windows-x64-baseline\bin\opencode.exe"
           if (!(Test-Path $cli)) {
             throw "Windows x64 CLI binary not found: $cli"
           }
