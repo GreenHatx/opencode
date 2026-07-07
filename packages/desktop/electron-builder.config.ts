@@ -38,6 +38,11 @@ const APP_IDS = {
   prod: "ai.opencode.desktop",
 } as const
 
+const windowsTargets = (process.env.OPENCODE_WINDOWS_TARGETS ?? "nsis")
+  .split(",")
+  .map((target) => target.trim())
+  .filter(Boolean)
+
 const getBase = (appId: string): Configuration => ({
   artifactName: "opencode-desktop-${os}-${arch}.${ext}",
   directories: {
@@ -82,7 +87,7 @@ const getBase = (appId: string): Configuration => ({
     signtoolOptions: {
       sign: signWindows,
     },
-    target: ["nsis"],
+    target: windowsTargets.length ? windowsTargets : ["nsis"],
     verifyUpdateCodeSignature: false,
   },
   nsis: {

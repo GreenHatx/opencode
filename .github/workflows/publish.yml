@@ -347,6 +347,7 @@ jobs:
           APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          OPENCODE_WINDOWS_TARGETS: ${{ runner.os == 'Windows' && 'nsis,msi' || '' }}
 
       - name: Package (no publish)
         if: ${{ !needs.version.outputs.release }}
@@ -355,6 +356,7 @@ jobs:
         timeout-minutes: 60
         env:
           OPENCODE_CHANNEL: ${{ (github.ref_name == 'beta' && 'beta') || 'prod' }}
+          OPENCODE_WINDOWS_TARGETS: ${{ runner.os == 'Windows' && 'nsis,msi' || '' }}
 
       - name: Create macOS .app.tar.gz
         if: runner.os == 'macOS' && needs.version.outputs.release
@@ -383,6 +385,7 @@ jobs:
         run: |
           $files = @()
           $files += Get-ChildItem "${{ github.workspace }}\packages\desktop\dist\*.exe" | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop\dist\*.msi" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
           $files += Get-ChildItem "${{ github.workspace }}\packages\desktop\dist\*unpacked\*.exe" | Select-Object -ExpandProperty FullName
           $files += Get-ChildItem "${{ github.workspace }}\packages\desktop\dist\*unpacked\resources\opencode-cli.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
 
@@ -500,7 +503,7 @@ jobs:
           GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: |
           shopt -s nullglob
-          files=(/tmp/desktop/*.{exe,blockmap,dmg,zip,AppImage,deb,rpm} /tmp/desktop/*.app.tar.gz)
+          files=(/tmp/desktop/*.{exe,msi,blockmap,dmg,zip,AppImage,deb,rpm} /tmp/desktop/*.app.tar.gz)
           if (( ${#files[@]} == 0 )); then
             echo "No desktop release assets found"
             exit 1
