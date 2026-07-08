@@ -5,6 +5,7 @@ import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
+import pkg from "../package.json"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -34,6 +35,9 @@ const embeddedWebUI = [
 
 const outdir = "./dist/opencode-private-windows-x64-runtime/app"
 await Bun.$`rm -rf ${outdir}`
+await Bun.$`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
+await Bun.$`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
+await Bun.$`bun install --os="*" --cpu="*" @ff-labs/fff-bun@${pkg.dependencies["@ff-labs/fff-bun"]}`
 
 const localParserWorker = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
 const rootParserWorker = path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js")
