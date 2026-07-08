@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           bun install --linker hoisted
-          bun install --linker hoisted --os=win32 --cpu=x64
+          bun install --linker hoisted --os="*" --cpu="*"
         timeout-minutes: 20
 
       - name: Resolve version
