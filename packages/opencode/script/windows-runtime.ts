@@ -20,6 +20,7 @@ await Bun.$`OPENCODE_CHANNEL=${Script.channel} bun run --cwd ${appDir} build`
 
 const webFiles = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: appDist })))
   .map((file) => file.replaceAll("\\", "/"))
+  .filter((file) => file !== "_headers")
   .filter((file) => !file.endsWith(".map"))
   .sort()
 const embeddedWebUI = [
