@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 jobs:
-  build-cli:
+  build-runtime-app:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
@@ -48,31 +48,28 @@ jobs:
           echo "Resolved OPENCODE_VERSION=$VERSION"
           echo "OPENCODE_VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Build Windows baseline CLI
-        run: bun run build --single --baseline --skip-install
+      - name: Build Windows runtime app
+        run: bun run script/windows-runtime.ts
         working-directory: packages/opencode
         timeout-minutes: 60
         env:
           OPENCODE_CHANNEL: dev
-          OPENCODE_BINARY_NPM_PREFIX: opencode
-          OPENCODE_BUILD_OS: win32
-          OPENCODE_BUILD_ARCH: x64
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: opencode-private-windows-baseline-cli
-          path: packages/opencode/dist/opencode-windows-x64-baseline/bin/opencode.exe
+          name: opencode-private-windows-runtime-app
+          path: packages/opencode/dist/opencode-private-windows-x64-runtime/app
 
   build:
-    needs: build-cli
+    needs: build-runtime-app
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: opencode-private-windows-baseline-cli
-          path: packages/opencode/dist/opencode-windows-x64-baseline/bin
+          name: opencode-private-windows-runtime-app
+          path: packages/opencode/dist/opencode-private-windows-x64-runtime/app
 
       - name: Install WiX
         shell: pwsh
@@ -85,19 +82,31 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $dist = Join-Path $PWD "packages\opencode\dist"
-          $cli = Join-Path $dist "opencode-windows-x64-baseline\bin\opencode.exe"
-          if (!(Test-Path $cli)) {
-            throw "Windows x64 CLI binary not found: $cli"
+          $appDir = Join-Path $dist "opencode-private-windows-x64-runtime\app"
+          $appEntry = Join-Path $appDir "index.js"
+          if (!(Test-Path $appEntry)) {
+            throw "Windows x64 runtime app entry not found: $appEntry"
           }
 
           $msiDir = Join-Path $dist "msi"
           New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
           $version = (Get-Content "packages\opencode\package.json" | ConvertFrom-Json).version
+          $bunVersion = ((Get-Content "package.json" | ConvertFrom-Json).packageManager -replace "^bun@", "")
 
-          $shim = Join-Path $msiDir "opencode.cmd"
+          $runtimeDir = Join-Path $msiDir "runtime"
+          New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
+          $bunZip = Join-Path $msiDir "bun-windows-x64.zip"
+          Invoke-WebRequest `
+            -Uri "https://github.com/oven-sh/bun/releases/download/bun-v$bunVersion/bun-windows-x64.zip" `
+            -OutFile $bunZip
+          Expand-Archive -Force $bunZip $msiDir
+          Copy-Item (Join-Path $msiDir "bun-windows-x64\bun.exe") (Join-Path $runtimeDir "bun.exe")
+
+          $privateShim = Join-Path $msiDir "opencode-private.cmd"
           @'
           @echo off
           setlocal
+          set "ROOT=%~dp0.."
           set "OPENCODE_CONFIG=%USERPROFILE%\.config\opencode.json"
           if not exist "%USERPROFILE%\.config" mkdir "%USERPROFILE%\.config" >nul 2>nul
           if not exist "%OPENCODE_CONFIG%" (
@@ -105,9 +114,47 @@ jobs:
             >>"%OPENCODE_CONFIG%" echo   "$schema": "https://schemas.internal.local/opencode/config.json"
             >>"%OPENCODE_CONFIG%" echo }
           )
-          "%~dp0opencode-private.exe" %*
+          pushd "%ROOT%\app" >nul
+          "%ROOT%\runtime\bun.exe" "%ROOT%\app\index.js" %*
+          set "OPENCODE_EXIT=%ERRORLEVEL%"
+          popd >nul
+          exit /b %OPENCODE_EXIT%
+          '@ | Set-Content -Path $privateShim -NoNewline -Encoding ascii
+
+          $aliasShim = Join-Path $msiDir "opencode.cmd"
+          @'
+          @echo off
+          "%~dp0opencode-private.cmd" %*
           exit /b %ERRORLEVEL%
-          '@ | Set-Content -Path $shim -NoNewline -Encoding ascii
+          '@ | Set-Content -Path $aliasShim -NoNewline -Encoding ascii
+
+          $repairScript = Join-Path $msiDir "repair-windows-private-path.ps1"
+          @'
+          $ErrorActionPreference = "Stop"
+          $privateBin = Join-Path $env:LOCALAPPDATA "OpenCode Private\bin"
+          $current = [Environment]::GetEnvironmentVariable("PATH", "User")
+          $parts = @($current -split ";" | Where-Object { $_ -and ($_ -ne $privateBin) })
+          [Environment]::SetEnvironmentVariable("PATH", (@($privateBin) + $parts -join ";"), "User")
+          Write-Host "OpenCode Private user PATH repaired. Open a new terminal and run: where opencode-private"
+          '@ | Set-Content -Path $repairScript -NoNewline -Encoding ascii
+
+          function ConvertTo-WixId([string] $value) {
+            $id = ($value -replace "[^A-Za-z0-9_]", "_")
+            if ($id -match "^[0-9]") {
+              return "F_$id"
+            }
+            return $id
+          }
+
+          $appFiles = Get-ChildItem -Path $appDir -File | Sort-Object Name | ForEach-Object {
+            $id = ConvertTo-WixId "App_$($_.Name)"
+            @"
+              <Component Id="$id" Directory="AppFolder" Guid="*">
+                <File Id="$id`_File" Source="$($_.FullName)" Name="$($_.Name)" KeyPath="yes" />
+              </Component>
+          "@
+          }
+          $appComponents = $appFiles -join "`n"
 
           $wxs = Join-Path $msiDir "opencode-private.wxs"
           @"
@@ -118,7 +165,7 @@ jobs:
               Version="$version"
               UpgradeCode="{1F8C375D-6316-4A20-967C-3FA2B098EAA1}"
               Scope="perUser">
-              <MajorUpgrade DowngradeErrorMessage="A newer version of OpenCode Private is already installed." />
+              <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of OpenCode Private is already installed." />
               <MediaTemplate EmbedCab="yes" />
 
               <Feature Id="MainFeature" Title="OpenCode Private" Level="1">
@@ -128,22 +175,30 @@ jobs:
               <StandardDirectory Id="LocalAppDataFolder">
                 <Directory Id="InstallFolder" Name="OpenCode Private">
                   <Directory Id="BinFolder" Name="bin" />
+                  <Directory Id="RuntimeFolder" Name="runtime" />
+                  <Directory Id="AppFolder" Name="app" />
                 </Directory>
               </StandardDirectory>
 
             <ComponentGroup Id="OpenCodePrivateComponents">
-              <Component Id="OpenCodeExeComponent" Directory="BinFolder" Guid="{91AE42C0-7B86-4C55-9EA8-C32E12F70E50}">
-                <File Id="OpenCodeExe" Source="$cli" Name="opencode-private.exe" KeyPath="yes" />
+              <Component Id="OpenCodePrivateShimComponent" Directory="BinFolder" Guid="{91AE42C0-7B86-4C55-9EA8-C32E12F70E50}">
+                <File Id="OpenCodePrivateShim" Source="$privateShim" Name="opencode-private.cmd" KeyPath="yes" />
               </Component>
 
               <Component Id="OpenCodeShimComponent" Directory="BinFolder" Guid="{5E78A046-51A7-4F52-B904-3CA5FDB71B27}">
-                <File Id="OpenCodeShim" Source="$shim" Name="opencode.cmd" KeyPath="yes" />
+                <File Id="OpenCodeShim" Source="$aliasShim" Name="opencode.cmd" KeyPath="yes" />
+              </Component>
+
+              <Component Id="OpenCodeRuntimeComponent" Directory="RuntimeFolder" Guid="{A3415876-C61C-4C87-B7F8-11D411B409AA}">
+                <File Id="OpenCodeRuntimeBun" Source="$(Join-Path $runtimeDir "bun.exe")" Name="bun.exe" KeyPath="yes" />
               </Component>
 
               <Component Id="OpenCodeUserPathComponent" Directory="BinFolder" Guid="{BC789E4E-C7D1-4F1A-B204-6D13EE684475}">
                 <RegistryValue Root="HKCU" Key="Software\GreenHatx\OpenCodePrivate" Name="PathEntry" Value="1" Type="integer" KeyPath="yes" />
-                <Environment Id="OpenCodeUserPath" Name="PATH" Value="[BinFolder]" Permanent="no" Part="last" Action="set" System="no" />
+                <Environment Id="OpenCodeUserPath" Name="PATH" Value="[BinFolder]" Permanent="no" Part="first" Action="set" System="no" />
               </Component>
+
+          $appComponents
             </ComponentGroup>
           </Package>
           </Wix>
@@ -151,6 +206,19 @@ jobs:
 
           wix build $wxs -arch x64 -out (Join-Path $dist "opencode-private-windows-x64.msi")
           Copy-Item "packages\opencode\script\uninstall-windows-private.ps1" (Join-Path $dist "uninstall-windows-private.ps1")
+          Copy-Item $repairScript (Join-Path $dist "repair-windows-private-path.ps1")
+
+      - name: Smoke test MSI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $msi = Join-Path $PWD "packages\opencode\dist\opencode-private-windows-x64.msi"
+          Start-Process msiexec.exe -ArgumentList "/i", $msi, "/qn", "/norestart" -Wait
+          $privateBin = Join-Path $env:LOCALAPPDATA "OpenCode Private\bin"
+          $env:PATH = "$privateBin;$env:PATH"
+          where.exe opencode-private
+          where.exe opencode
+          & (Join-Path $privateBin "opencode-private.cmd") --version
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -158,3 +226,4 @@ jobs:
           path: |
             packages/opencode/dist/opencode-private-windows-x64.msi
             packages/opencode/dist/uninstall-windows-private.ps1
+            packages/opencode/dist/repair-windows-private-path.ps1

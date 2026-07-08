@@ -222,6 +222,43 @@ export PATH="$HOME/.local/bin:$PATH"
 opencode --version
 ```
 
+## Install the Windows private MSI
+
+Download the `opencode-private-windows-x64-msi` workflow artifact, extract it, and install the MSI:
+
+```powershell
+msiexec /i .\opencode-private-windows-x64.msi
+```
+
+The MSI installs per user under:
+
+```text
+%LOCALAPPDATA%\OpenCode Private
+```
+
+The Windows package carries its own private runtime under `runtime\`, so end users do not need to install Bun, Node.js, npm, or pnpm. The primary command is:
+
+```powershell
+opencode-private --version
+opencode-private --help
+```
+
+The MSI also installs `opencode` as a compatibility alias. If another public or development OpenCode install is already on `PATH`, prefer `opencode-private` because it does not collide with other products.
+
+Open a new terminal after installation, then verify command resolution:
+
+```powershell
+where opencode-private
+where opencode
+opencode-private --version
+```
+
+If an older OpenCode path still wins, run the repair script from the extracted artifact and open a new terminal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\repair-windows-private-path.ps1
+```
+
 ## Uninstall the Windows private MSI
 
 Use Windows Settings > Apps for normal removal, or run the release artifact script from PowerShell:
