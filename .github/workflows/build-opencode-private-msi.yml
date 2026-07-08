@@ -95,12 +95,12 @@ jobs:
 
           $runtimeDir = Join-Path $msiDir "runtime"
           New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
-          $bunZip = Join-Path $msiDir "bun-windows-x64.zip"
+          $bunZip = Join-Path $msiDir "bun-windows-x64-baseline.zip"
           Invoke-WebRequest `
-            -Uri "https://github.com/oven-sh/bun/releases/download/bun-v$bunVersion/bun-windows-x64.zip" `
+            -Uri "https://github.com/oven-sh/bun/releases/download/bun-v$bunVersion/bun-windows-x64-baseline.zip" `
             -OutFile $bunZip
           Expand-Archive -Force $bunZip $msiDir
-          Copy-Item (Join-Path $msiDir "bun-windows-x64\bun.exe") (Join-Path $runtimeDir "bun.exe")
+          Copy-Item (Join-Path $msiDir "bun-windows-x64-baseline\bun.exe") (Join-Path $runtimeDir "bun.exe")
 
           $privateShim = Join-Path $msiDir "opencode-private.cmd"
           @'
@@ -133,7 +133,9 @@ jobs:
           $ErrorActionPreference = "Stop"
           $privateBin = Join-Path $env:LOCALAPPDATA "OpenCode Private\bin"
           $current = [Environment]::GetEnvironmentVariable("PATH", "User")
-          $parts = @($current -split ";" | Where-Object { $_ -and ($_ -ne $privateBin) })
+          $pathTrimChars = [char[]]@("\", "/")
+          $privateBinNormalized = $privateBin.TrimEnd($pathTrimChars)
+          $parts = @($current -split ";" | Where-Object { $_ -and ($_.TrimEnd($pathTrimChars) -ne $privateBinNormalized) })
           [Environment]::SetEnvironmentVariable("PATH", (@($privateBin) + $parts -join ";"), "User")
           Write-Host "OpenCode Private user PATH repaired. Open a new terminal and run: where opencode-private"
           '@ | Set-Content -Path $repairScript -NoNewline -Encoding ascii
