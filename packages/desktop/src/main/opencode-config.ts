@@ -1,14 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-
-// Seed the config schema from an internal host so a box-out install never references the public
-// opencode.ai domain. Override with OPENCODE_CONFIG_SCHEMA_URL to point at a different internal host.
-const DEFAULT_CONFIG_SCHEMA_URL =
-  process.env["OPENCODE_CONFIG_SCHEMA_URL"] ?? "https://schemas.internal.local/opencode/config.json"
-const DEFAULT_CONFIG = {
-  $schema: DEFAULT_CONFIG_SCHEMA_URL,
-}
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 type Env = Record<string, string | undefined>
 
@@ -30,7 +23,10 @@ export function ensureWindowsUserConfigSeed(input?: {
 
   mkdirSync(join(home, ".config"), { recursive: true })
   if (!existsSync(filepath)) {
-    writeFileSync(filepath, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`, { flag: "wx" })
+    // Seed the full enterprise default (internal provider, model and schema host) rather than a
+    // bare $schema, so a box-out install is usable without the user configuring a provider — and
+    // so it can never reference the public opencode.ai domain.
+    writeFileSync(filepath, EnterprisePolicy.defaultConfigJSON(env), { flag: "wx" })
   }
 
   env.OPENCODE_CONFIG ??= filepath

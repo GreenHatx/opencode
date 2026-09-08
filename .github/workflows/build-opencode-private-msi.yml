@@ -55,10 +55,18 @@ jobs:
         env:
           OPENCODE_CHANNEL: dev
 
+      # Derive the installer's config seed from EnterprisePolicy so the MSI cannot drift from the
+      # policy module the way a hand-maintained copy inside the shim script did.
+      - name: Emit enterprise config seed
+        run: bun run script/enterprise-config-seed.ts dist/opencode-private-windows-x64-runtime/opencode.default.json
+        working-directory: packages/opencode
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: opencode-private-windows-runtime-app
-          path: packages/opencode/dist/opencode-private-windows-x64-runtime/app
+          path: |
+            packages/opencode/dist/opencode-private-windows-x64-runtime/app
+            packages/opencode/dist/opencode-private-windows-x64-runtime/opencode.default.json
 
   build:
     needs: build-runtime-app
@@ -69,7 +77,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: opencode-private-windows-runtime-app
-          path: packages/opencode/dist/opencode-private-windows-x64-runtime/app
+          path: packages/opencode/dist/opencode-private-windows-x64-runtime
 
       - name: Install WiX
         shell: pwsh
@@ -86,6 +94,11 @@ jobs:
           $appEntry = Join-Path $appDir "index.js"
           if (!(Test-Path $appEntry)) {
             throw "Windows x64 runtime app entry not found: $appEntry"
+          }
+
+          $configSeed = Join-Path $dist "opencode-private-windows-x64-runtime\opencode.default.json"
+          if (!(Test-Path $configSeed)) {
+            throw "Enterprise config seed not found: $configSeed"
           }
 
           $msiDir = Join-Path $dist "msi"
@@ -109,11 +122,7 @@ jobs:
           set "ROOT=%~dp0.."
           set "OPENCODE_CONFIG=%USERPROFILE%\.config\opencode.json"
           if not exist "%USERPROFILE%\.config" mkdir "%USERPROFILE%\.config" >nul 2>nul
-          if not exist "%OPENCODE_CONFIG%" (
-            >"%OPENCODE_CONFIG%" echo {
-            >>"%OPENCODE_CONFIG%" echo   "$schema": "https://schemas.internal.local/opencode/config.json"
-            >>"%OPENCODE_CONFIG%" echo }
-          )
+          if not exist "%OPENCODE_CONFIG%" copy /y "%ROOT%\config\opencode.default.json" "%OPENCODE_CONFIG%" >nul 2>nul
           pushd "%ROOT%\app" >nul
           "%ROOT%\runtime\bun.exe" "%ROOT%\app\index.js" %*
           set "OPENCODE_EXIT=%ERRORLEVEL%"
@@ -178,6 +187,7 @@ jobs:
                 <Directory Id="InstallFolder" Name="OpenCode Private">
                   <Directory Id="BinFolder" Name="bin" />
                   <Directory Id="RuntimeFolder" Name="runtime" />
+                  <Directory Id="ConfigFolder" Name="config" />
                   <Directory Id="AppFolder" Name="app" />
                 </Directory>
               </StandardDirectory>
@@ -193,6 +203,10 @@ jobs:
 
               <Component Id="OpenCodeRuntimeComponent" Directory="RuntimeFolder" Guid="{A3415876-C61C-4C87-B7F8-11D411B409AA}">
                 <File Id="OpenCodeRuntimeBun" Source="$(Join-Path $runtimeDir "bun.exe")" Name="bun.exe" KeyPath="yes" />
+              </Component>
+
+              <Component Id="OpenCodeConfigSeedComponent" Directory="ConfigFolder" Guid="{7D4B1E93-2C6F-42A8-9B1D-0F5E8A6C4D21}">
+                <File Id="OpenCodeConfigSeed" Source="$configSeed" Name="opencode.default.json" KeyPath="yes" />
               </Component>
 
               <Component Id="OpenCodeUserPathComponent" Directory="BinFolder" Guid="{BC789E4E-C7D1-4F1A-B204-6D13EE684475}">
@@ -221,6 +235,23 @@ jobs:
           where.exe opencode-private
           where.exe opencode
           & (Join-Path $privateBin "opencode-private.cmd") --version
+
+          # Prove the installed shim seeds the packaged enterprise config, not a bare schema stub.
+          # Compared against the installed seed itself so this check never restates policy values.
+          $seeded = Join-Path $env:USERPROFILE ".config\opencode.json"
+          if (!(Test-Path $seeded)) { throw "Enterprise config was not seeded at $seeded" }
+          $packaged = Join-Path $env:LOCALAPPDATA "OpenCode Private\config\opencode.default.json"
+          if (!(Test-Path $packaged)) { throw "Packaged enterprise config seed missing at $packaged" }
+          if ((Get-Content $seeded -Raw) -ne (Get-Content $packaged -Raw)) {
+            throw "Seeded user config does not match the packaged enterprise default."
+          }
+          $config = Get-Content $seeded -Raw | ConvertFrom-Json
+          if (-not $config.model) { throw "Seeded config has no model" }
+          if (-not $config.provider) { throw "Seeded config has no provider" }
+          if ($config.'$schema' -notlike "https://schemas.internal.local/*") {
+            throw "Seeded config schema is not internal: $($config.'$schema')"
+          }
+          Write-Host "Enterprise policy config seeded correctly: $($config.model)"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

@@ -91,3 +91,35 @@
 - [x] Run `bun typecheck` from `packages/llm`.
 - [x] Run `bun typecheck` from `packages/app`.
 - [x] Run targeted tests for core, opencode, and llm policy.
+
+### Task 8: Sync Windows/MSI Packaging Into The Policy
+
+The Windows packaging work (desktop MSI seed, private MSI, WSL install, uninstall script) landed
+after Tasks 1-7 and re-introduced enterprise values as literals outside the policy module. Fold them
+back in so `EnterprisePolicy` stays the single source of truth.
+
+**Files:**
+- Modify: `packages/core/src/enterprise-policy.ts`
+- Modify: `packages/desktop/src/main/opencode-config.ts`
+- Modify: `packages/desktop/src/main/wsl/runtime.ts`
+- Modify: `packages/desktop/src/renderer/index.tsx`
+- Modify: `packages/opencode/src/config/config.ts`
+- Modify: `packages/opencode/src/installation/index.ts`
+- Create: `packages/opencode/script/enterprise-config-seed.ts`
+- Modify: `.github/workflows/build-opencode-private-msi.yml`
+- Test: `packages/core/test/enterprise-policy.test.ts`
+- Test: `packages/desktop/src/main/opencode-config.test.ts`
+
+- [x] Own the config schema URL in the policy (`DEFAULT_CONFIG_SCHEMA_URL`, `configSchemaURL`) and
+      validate the `OPENCODE_CONFIG_SCHEMA_URL` override against the host allowlist.
+- [x] Own the install source in the policy (`DEFAULT_INSTALL_URL`, `ALLOWED_INSTALL_HOSTS`,
+      `isInstallURLAllowed`, `assertInstallURLAllowed`, `installURL`) and validate the
+      `OPENCODE_INSTALL_URL` override.
+- [x] Stop the WSL installer from fetching `https://opencode.ai/install`; use the sanctioned source.
+- [x] Drop the remote `opencode.ai` notification icon from the desktop renderer.
+- [x] Seed the full enterprise default config (provider + model) on Windows instead of a bare
+      `$schema`, via `defaultConfigJSON()`.
+- [x] Generate the MSI config seed from the policy at build time and ship it as an MSI component so
+      the installer cannot drift from the policy module.
+- [x] Assert in the MSI smoke test that a fresh install is seeded with the enterprise provider/model.
+- [x] Run targeted core and desktop policy tests.

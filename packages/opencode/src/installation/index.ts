@@ -84,7 +84,6 @@ const ChocoPackage = Schema.Struct({
   d: Schema.Struct({ results: Schema.Array(Schema.Struct({ Version: Schema.String })) }),
 })
 const ScoopManifest = NpmPackage
-const DEFAULT_INSTALL_URL = "https://raw.githubusercontent.com/GreenHatx/opencode/enterprise-policy/install"
 
 export interface Interface {
   readonly info: () => Effect.Effect<Info>
@@ -158,8 +157,8 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
 
     const upgradeCurl = Effect.fnUntraced(
       function* (target: string) {
-        const installURL = process.env.OPENCODE_INSTALL_URL ?? DEFAULT_INSTALL_URL
-        EnterprisePolicy.assertOpenCodeCloudURLBlocked(installURL)
+        const installURL = EnterprisePolicy.installURL(process.env)
+        EnterprisePolicy.assertInstallURLAllowed(installURL)
         const response = yield* httpOk.execute(HttpClientRequest.get(installURL))
         const body = yield* response.text
         const bodyBytes = new TextEncoder().encode(body)

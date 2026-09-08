@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import * as pty from "@lydell/node-pty"
 import type { WslDistroProbe, WslInstalledDistro, WslOnlineDistro, WslRuntimeCheck } from "../../preload/types"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 import { wslTerminalArgs } from "./policy"
 
 export type WslCommandLine = {
@@ -259,11 +260,19 @@ export async function installWslDistro(name: string, opts?: RunWslOptions) {
   )
 }
 
+// The install script is fetched from the sanctioned internal/enterprise source; opencode.ai and any
+// other unapproved host is rejected before the command is ever handed to WSL.
+function resolveInstallURL() {
+  const url = EnterprisePolicy.installURL(process.env)
+  EnterprisePolicy.assertInstallURLAllowed(url)
+  return url
+}
+
 export async function installWslOpencode(version: string, distro: string, opts?: RunWslOptions) {
   return runInteractiveCommand(
     resolveSystem32Command("wsl.exe"),
     wslArgs(
-      ["bash", "-lc", `curl -fsSL https://opencode.ai/install | bash -s -- --version ${shellEscape(version)}`],
+      ["bash", "-lc", `curl -fsSL ${shellEscape(resolveInstallURL())} | bash -s -- --version ${shellEscape(version)}`],
       distro,
     ),
     withTimeout(opts, DEFAULT_WSL_INSTALL_TIMEOUT_MS),
