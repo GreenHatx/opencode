@@ -36,4 +36,47 @@ describe("EnterprisePolicy", () => {
       "OpenCode cloud endpoint blocked: api.opencode.ai",
     )
   })
+
+  test("allows only the sanctioned install source", () => {
+    expect(EnterprisePolicy.isInstallURLAllowed(EnterprisePolicy.DEFAULT_INSTALL_URL)).toBe(true)
+    expect(EnterprisePolicy.isInstallURLAllowed("https://llm-gateway.internal.local/install")).toBe(true)
+    expect(EnterprisePolicy.isInstallURLAllowed("https://opencode.ai/install")).toBe(false)
+    expect(EnterprisePolicy.isInstallURLAllowed("https://example.com/install")).toBe(false)
+    expect(EnterprisePolicy.isInstallURLAllowed(undefined)).toBe(false)
+    expect(() => EnterprisePolicy.assertInstallURLAllowed("https://opencode.ai/install")).toThrow(
+      "OpenCode cloud endpoint blocked: opencode.ai",
+    )
+    expect(() => EnterprisePolicy.assertInstallURLAllowed("https://example.com/install")).toThrow(
+      "Install source not allowed: example.com",
+    )
+  })
+
+  test("falls back to the default install URL when the override is blocked", () => {
+    expect(EnterprisePolicy.installURL({})).toBe(EnterprisePolicy.DEFAULT_INSTALL_URL)
+    expect(EnterprisePolicy.installURL({ OPENCODE_INSTALL_URL: "https://opencode.ai/install" })).toBe(
+      EnterprisePolicy.DEFAULT_INSTALL_URL,
+    )
+    expect(EnterprisePolicy.installURL({ OPENCODE_INSTALL_URL: "https://build.internal.local/install" })).toBe(
+      "https://build.internal.local/install",
+    )
+  })
+
+  test("keeps the config schema on an internal host", () => {
+    expect(EnterprisePolicy.configSchemaURL({})).toBe(EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL)
+    expect(EnterprisePolicy.configSchemaURL({ OPENCODE_CONFIG_SCHEMA_URL: "https://opencode.ai/config.json" })).toBe(
+      EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL,
+    )
+    expect(
+      EnterprisePolicy.configSchemaURL({ OPENCODE_CONFIG_SCHEMA_URL: "https://schemas.internal.local/v2.json" }),
+    ).toBe("https://schemas.internal.local/v2.json")
+  })
+
+  test("serializes a usable enterprise default config for installers", () => {
+    const seed = JSON.parse(EnterprisePolicy.defaultConfigJSON())
+    expect(seed.$schema).toBe(EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL)
+    expect(seed.model).toBe(EnterprisePolicy.DEFAULT_MODEL_REF)
+    expect(seed.small_model).toBe(EnterprisePolicy.DEFAULT_MODEL_REF)
+    expect(seed.provider[EnterprisePolicy.DEFAULT_PROVIDER_ID].options.baseURL).toBe(EnterprisePolicy.DEFAULT_BASE_URL)
+    expect(EnterprisePolicy.defaultConfigJSON().endsWith("\n")).toBe(true)
+  })
 })

@@ -1,5 +1,7 @@
 export * as EnterprisePolicy from "./enterprise-policy"
 
+export type EnvLike = Record<string, string | undefined>
+
 export const ALLOWED_PROVIDERS = ["kurumici", "ollama"] as const
 
 export const ALLOWED_HOSTS = [
@@ -21,6 +23,16 @@ export const DEFAULT_MODEL_REF = `${DEFAULT_PROVIDER_ID}/${DEFAULT_MODEL_ID}`
 export const DEFAULT_BASE_URL = "https://llm-gateway.internal.local/v1"
 export const DEFAULT_API_KEY = "internal-token"
 
+// Config schema is served from an internal host so a box-out install never references the public
+// opencode.ai domain. Overridable with OPENCODE_CONFIG_SCHEMA_URL, but the override is validated
+// against the host allowlist so it cannot be used to route the fork back at a public domain.
+export const DEFAULT_CONFIG_SCHEMA_URL = "https://schemas.internal.local/opencode/config.json"
+
+// Sanctioned source for the self-update / install script. Kept separate from ALLOWED_HOSTS: that
+// list governs model egress, this one governs where installable code may be fetched from.
+export const DEFAULT_INSTALL_URL = "https://raw.githubusercontent.com/GreenHatx/opencode/enterprise-policy/install"
+export const ALLOWED_INSTALL_HOSTS = ["raw.githubusercontent.com", ...ALLOWED_HOSTS] as const
+
 export class ProviderBlockedError extends Error {
   constructor(providerID: string) {
     super(`Provider not allowed: ${providerID}`)
@@ -39,6 +51,13 @@ export class OpenCodeCloudBlockedError extends Error {
   constructor(hostname: string) {
     super(`OpenCode cloud endpoint blocked: ${hostname}`)
     this.name = "OpenCodeCloudBlockedError"
+  }
+}
+
+export class InstallSourceBlockedError extends Error {
+  constructor(hostname: string) {
+    super(`Install source not allowed: ${hostname}`)
+    this.name = "InstallSourceBlockedError"
   }
 }
 
@@ -107,6 +126,40 @@ export function assertRequestURLAllowed(input: string | URL | { url: string }) {
   }
 }
 
+function installHostname(url: string | undefined) {
+  if (!url) return undefined
+  try {
+    return new URL(url).hostname.toLowerCase()
+  } catch {
+    return undefined
+  }
+}
+
+export function isInstallURLAllowed(url: string | undefined) {
+  const hostname = installHostname(url)
+  if (!hostname) return false
+  if (isOpenCodeCloudHostname(hostname)) return false
+  return ALLOWED_INSTALL_HOSTS.some((allowed) => hostMatches(allowed, hostname))
+}
+
+export function assertInstallURLAllowed(url: string | undefined) {
+  if (isInstallURLAllowed(url)) return
+  const hostname = installHostname(url) ?? url ?? ""
+  if (isOpenCodeCloudHostname(hostname)) throw new OpenCodeCloudBlockedError(hostname)
+  throw new InstallSourceBlockedError(hostname)
+}
+
+export function installURL(env: EnvLike = {}) {
+  const override = env["OPENCODE_INSTALL_URL"]
+  return isInstallURLAllowed(override) ? override! : DEFAULT_INSTALL_URL
+}
+
+export function configSchemaURL(env: EnvLike = {}) {
+  const override = env["OPENCODE_CONFIG_SCHEMA_URL"]
+  if (override && isBaseURLAllowed(override)) return override
+  return DEFAULT_CONFIG_SCHEMA_URL
+}
+
 export function blocksRemoteModelDiscovery() {
   return true
 }
@@ -119,9 +172,9 @@ export function blocksRemoteConfig() {
   return true
 }
 
-export function defaultConfig() {
+export function defaultConfig(env: EnvLike = {}) {
   return {
-    $schema: "https://schemas.internal.local/opencode/config.json",
+    $schema: configSchemaURL(env),
     model: DEFAULT_MODEL_REF,
     small_model: DEFAULT_MODEL_REF,
     provider: {
@@ -146,6 +199,13 @@ export function defaultConfig() {
   }
 }
 
+// Serialized form of the enterprise default config. Installers (desktop seed, Windows MSI) write
+// this verbatim so a fresh box-out install starts on the internal provider instead of an empty
+// config that only carries a schema reference.
+export function defaultConfigJSON(env: EnvLike = {}) {
+  return `${JSON.stringify(defaultConfig(env), null, 2)}\n`
+}
+
 type ConfigLike = {
   $schema?: string
   model?: string
@@ -153,8 +213,8 @@ type ConfigLike = {
   provider?: Record<string, unknown>
 }
 
-export function applyConfigDefaults<T extends ConfigLike>(input: T): T {
-  const defaults = defaultConfig()
+export function applyConfigDefaults<T extends ConfigLike>(input: T, env: EnvLike = {}): T {
+  const defaults = defaultConfig(env)
   return {
     ...input,
     $schema: input.$schema ?? defaults.$schema,

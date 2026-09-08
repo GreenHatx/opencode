@@ -214,9 +214,10 @@ const createPlatform = (): Platform => {
       const focused = await window.api.getWindowFocused().catch(() => document.hasFocus())
       if (focused) return
 
+      // No remote icon: fetching one would reach the public opencode.ai domain, which enterprise
+      // policy blocks. The platform falls back to the packaged application icon.
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://opencode.ai/favicon-96x96-v3.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()

@@ -252,7 +252,7 @@ export const layer = Layer.effect(
         const file = globalConfigFile()
         if (!existsSync(file)) {
           yield* fs
-            .writeWithDirs(file, JSON.stringify(EnterprisePolicy.defaultConfig(), null, 2))
+            .writeWithDirs(file, EnterprisePolicy.defaultConfigJSON(process.env))
             .pipe(Effect.catch(() => Effect.void))
         }
       }
@@ -267,7 +267,7 @@ export const layer = Layer.effect(
             .then(async (mod) => {
               const { provider, model, ...rest } = mod.default
               if (provider && model) result.model = `${provider}/${model}`
-              result["$schema"] = "https://schemas.internal.local/opencode/config.json"
+              result["$schema"] = EnterprisePolicy.configSchemaURL(process.env)
               result = mergeConfig(result, rest)
               await fsNode.writeFile(path.join(Global.Path.config, "config.json"), JSON.stringify(result, null, 2))
               await fsNode.unlink(legacy)
