@@ -5,7 +5,12 @@ export class ExternalProviderBlockedError extends Error {
   }
 }
 
-const ALLOWED_HOSTS = [
+// These lists intentionally duplicate the ones in @opencode-ai/core's enterprise-policy. They cannot
+// be shared by importing core here: core already depends on llm, so the reverse edge would be a
+// dependency cycle — and llm is the low-level transport package, deliberately kept dependency-light.
+// Instead, packages/core/test/enterprise-policy-parity.test.ts fails if the two ever diverge. Any
+// change here must be mirrored in packages/core/src/enterprise-policy.ts.
+export const ALLOWED_HOSTS = [
   "localhost",
   "127.0.0.1",
   "::1",
@@ -15,7 +20,7 @@ const ALLOWED_HOSTS = [
   "*.turktelekom.com.tr",
 ] as const
 
-const BLOCKED_OPENCODE_CLOUD_HOSTS = ["opencode.ai", "*.opencode.ai"] as const
+export const BLOCKED_OPENCODE_CLOUD_HOSTS = ["opencode.ai", "*.opencode.ai"] as const
 
 const normalizeHostname = (hostname: string) => hostname.toLowerCase().replace(/^\[|\]$/g, "")
 
