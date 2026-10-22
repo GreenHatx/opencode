@@ -1,0 +1,171 @@
+name: build-opencode-private-msi
+
+on:
+  push:
+    branches:
+      - enterprise-policy-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-exe:
+    # GitHub-hosted on purpose: upstream's blacksmith runners are not available to this fork.
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: ./.github/actions/setup-bun
+
+      # A fixed OPENCODE_VERSION keeps the build off the npm registry and selects the release
+      # channel; MSI versions must be numeric, which a branch-derived preview version is not.
+      - name: Resolve version
+        id: version
+        run: echo "version=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build Windows x64 baseline executable
+        working-directory: packages/cli
+        run: bun run script/build.ts --target=opencode-windows-x64-baseline
+        env:
+          OPENCODE_VERSION: ${{ steps.version.outputs.version }}
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: opencode-private-windows-x64-exe
+          path: packages/cli/dist/cli-windows-x64-baseline/bin/opencode.exe
+          if-no-files-found: error
+
+  msi:
+    needs: build-exe
+    runs-on: windows-2025
+    env:
+      VERSION: ${{ needs.build-exe.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: opencode-private-windows-x64-exe
+          path: dist/exe
+
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 6.0.2
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dist = Join-Path $PWD "dist"
+          $exe = Join-Path $dist "exe\opencode.exe"
+          if (!(Test-Path $exe)) { throw "opencode.exe not found: $exe" }
+
+          $msiDir = Join-Path $dist "msi"
+          New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
+
+          # Keeps the command name the v1 installer introduced working after an upgrade.
+          $privateShim = Join-Path $msiDir "opencode-private.cmd"
+          @'
+          @echo off
+          "%~dp0opencode.exe" %*
+          exit /b %ERRORLEVEL%
+          '@ | Set-Content -Path $privateShim -NoNewline -Encoding ascii
+
+          $repairScript = Join-Path $dist "repair-windows-private-path.ps1"
+          @'
+          $ErrorActionPreference = "Stop"
+          $privateBin = Join-Path $env:LOCALAPPDATA "OpenCode Private\bin"
+          $current = [Environment]::GetEnvironmentVariable("PATH", "User")
+          $pathTrimChars = [char[]]@("\", "/")
+          $privateBinNormalized = $privateBin.TrimEnd($pathTrimChars)
+          $parts = @($current -split ";" | Where-Object { $_ -and ($_.TrimEnd($pathTrimChars) -ne $privateBinNormalized) })
+          [Environment]::SetEnvironmentVariable("PATH", (@($privateBin) + $parts -join ";"), "User")
+          Write-Host "OpenCode Private user PATH repaired. Open a new terminal and run: where opencode"
+          '@ | Set-Content -Path $repairScript -NoNewline -Encoding ascii
+
+          # The UpgradeCode is the v1 installer's, so this MSI upgrades an existing v1 install in place.
+          $wxs = Join-Path $msiDir "opencode-private.wxs"
+          @"
+          <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+            <Package
+              Name="OpenCode Private"
+              Manufacturer="GreenHatx"
+              Version="$env:VERSION"
+              UpgradeCode="{1F8C375D-6316-4A20-967C-3FA2B098EAA1}"
+              Scope="perUser">
+              <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of OpenCode Private is already installed." />
+              <MediaTemplate EmbedCab="yes" />
+
+              <Feature Id="MainFeature" Title="OpenCode Private" Level="1">
+                <ComponentGroupRef Id="OpenCodePrivateComponents" />
+              </Feature>
+
+              <StandardDirectory Id="LocalAppDataFolder">
+                <Directory Id="InstallFolder" Name="OpenCode Private">
+                  <Directory Id="BinFolder" Name="bin" />
+                </Directory>
+              </StandardDirectory>
+
+              <ComponentGroup Id="OpenCodePrivateComponents">
+                <Component Id="OpenCodeExecutableComponent" Directory="BinFolder" Guid="{4C0B9E57-8F3A-4D1E-A6B2-7E5D9C3F1A08}">
+                  <File Id="OpenCodeExecutable" Source="$exe" Name="opencode.exe" KeyPath="yes" />
+                </Component>
+
+                <Component Id="OpenCodePrivateShimComponent" Directory="BinFolder" Guid="{91AE42C0-7B86-4C55-9EA8-C32E12F70E50}">
+                  <File Id="OpenCodePrivateShim" Source="$privateShim" Name="opencode-private.cmd" KeyPath="yes" />
+                </Component>
+
+                <Component Id="OpenCodeUserPathComponent" Directory="BinFolder" Guid="{BC789E4E-C7D1-4F1A-B204-6D13EE684475}">
+                  <RegistryValue Root="HKCU" Key="Software\GreenHatx\OpenCodePrivate" Name="PathEntry" Value="1" Type="integer" KeyPath="yes" />
+                  <Environment Id="OpenCodeUserPath" Name="PATH" Value="[BinFolder]" Permanent="no" Part="first" Action="set" System="no" />
+                </Component>
+              </ComponentGroup>
+            </Package>
+          </Wix>
+          "@ | Set-Content -Path $wxs -Encoding utf8
+
+          wix build $wxs -arch x64 -out (Join-Path $dist "opencode-private-windows-x64.msi")
+          Copy-Item "packages\cli\script\windows\uninstall-private.ps1" (Join-Path $dist "uninstall-windows-private.ps1")
+
+      - name: Smoke test MSI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $msi = Join-Path $PWD "dist\opencode-private-windows-x64.msi"
+          $install = Start-Process msiexec.exe -ArgumentList "/i", $msi, "/qn", "/norestart", "/l*v", "msi-install.log" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            Get-Content msi-install.log -Tail 60
+            throw "msiexec exited with $($install.ExitCode)"
+          }
+
+          $bin = Join-Path $env:LOCALAPPDATA "OpenCode Private\bin"
+          $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+          if (($userPath -split ";") -notcontains $bin.TrimEnd("\") -and ($userPath -split ";") -notcontains "$bin\") {
+            throw "Install did not add $bin to the user PATH: $userPath"
+          }
+
+          $exe = Join-Path $bin "opencode.exe"
+          $installed = (& $exe --version | Out-String).Trim()
+          if ($installed -ne $env:VERSION) { throw "Expected version $env:VERSION, got '$installed'" }
+          $alias = (& (Join-Path $bin "opencode-private.cmd") --version | Out-String).Trim()
+          if ($alias -ne $env:VERSION) { throw "opencode-private.cmd reported '$alias'" }
+
+          # Proves this is the enterprise build: a public build would try to update itself.
+          $upgrade = (& $exe upgrade 2>&1 | Out-String)
+          Write-Host "opencode upgrade exited $LASTEXITCODE"
+          if ($upgrade -notmatch "does not update itself") { throw "opencode upgrade did not refuse:`n$upgrade" }
+          Write-Host "Installed OpenCode Private $installed; self-update is disabled."
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: opencode-private-windows-x64-msi
+          if-no-files-found: error
+          path: |
+            dist/opencode-private-windows-x64.msi
+            dist/uninstall-windows-private.ps1
+            dist/repair-windows-private-path.ps1
