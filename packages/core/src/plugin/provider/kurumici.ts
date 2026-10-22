@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect"
-import { EnterprisePolicy } from "../../enterprise-policy.js"
+import { EnterprisePolicy } from "@opencode/util/enterprise-policy"
 import { createLocalProviderPlugin, type LocalDiscoveryClient } from "./local.js"
 
 const Response = Schema.Struct({ data: Schema.Array(Schema.Struct({ id: Schema.String })) })

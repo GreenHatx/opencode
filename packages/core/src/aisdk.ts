@@ -41,7 +41,7 @@ import type { ID, RuntimeInfo } from "./model.js"
 import { Provider } from "./provider.js"
 import { State } from "./state.js"
 import { stringify } from "./tool/runtime.js"
-import { EnterprisePolicy } from "./enterprise-policy.js"
+import { EnterprisePolicy } from "@opencode/util/enterprise-policy"
 
 type SDK = any
 type UserContent = Extract<LanguageModelV3Message, { role: "user" }>["content"]

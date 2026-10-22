@@ -15,12 +15,27 @@ import { Service } from "@opencode/client/effect/service"
 import { OpenCode } from "@opencode/client/promise"
 import { findSession } from "../../session-target"
 import { errorMessage } from "../../util/error"
+import { EnterpriseSetup } from "../../services/enterprise-setup"
+import { log } from "@clack/prompts"
 
 export default Runtime.handler(Commands, (input) =>
   Effect.gen(function* () {
     const requestedDirectory = Option.getOrUndefined(input.directory)
     const requestedServer = Option.getOrUndefined(input.server)
     if (requestedDirectory !== undefined) process.chdir(requestedDirectory)
+    // Enterprise fork: the gateway is configured per user, so the first interactive launch walks
+    // through it before the TUI starts. A remote --server keeps its own configuration.
+    if (
+      requestedServer === undefined &&
+      process.stdin.isTTY &&
+      process.stdout.isTTY &&
+      !(yield* EnterpriseSetup.configured())
+    )
+      yield* EnterpriseSetup.run().pipe(
+        Effect.catch(() =>
+          Effect.sync(() => log.warn("Gateway not configured. Run `opencode setup` whenever you are ready.")),
+        ),
+      )
     const preflight = UpdatePreflight.make()
     yield* Effect.addFinalizer(() => Effect.promise(() => preflight.close()))
     const serviceStarts = yield* Queue.unbounded<{

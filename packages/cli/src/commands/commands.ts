@@ -72,6 +72,7 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
         ),
       },
     }),
+    Spec.make("setup", { description: "Connect your organization's AI gateway" }),
     Spec.make("uninstall", {
       description: "Uninstall OpenCode, keeping session data, configuration, and state",
       params: {

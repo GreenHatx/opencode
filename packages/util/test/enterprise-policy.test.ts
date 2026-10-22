@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { EnterprisePolicy, isOpenCodeCloudHostname } from "@opencode/core/enterprise-policy"
+import { EnterprisePolicy, isOpenCodeCloudHostname } from "@opencode/util/enterprise-policy"
 
 describe("EnterprisePolicy", () => {
   test("allows only approved provider IDs", () => {

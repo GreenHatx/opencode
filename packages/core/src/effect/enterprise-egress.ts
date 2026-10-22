@@ -2,7 +2,7 @@ export * as EnterpriseEgress from "./enterprise-egress.js"
 
 import { Effect, Layer } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientError, type HttpClientRequest } from "effect/http"
-import { EnterprisePolicy } from "../enterprise-policy.js"
+import { EnterprisePolicy } from "@opencode/util/enterprise-policy"
 
 // Two seams with different strictness. Model traffic may only reach the internal allowlist. Every
 // other outbound request (webfetch, MCP, skills, the model catalog) stays open except to OpenCode's

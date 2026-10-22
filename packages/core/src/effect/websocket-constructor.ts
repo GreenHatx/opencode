@@ -4,7 +4,7 @@ import { HttpProxyAgent } from "http-proxy-agent"
 import { HttpsProxyAgent } from "https-proxy-agent"
 import { Layer } from "effect"
 import { Socket } from "effect/socket"
-import { EnterprisePolicy } from "../enterprise-policy.js"
+import { EnterprisePolicy } from "@opencode/util/enterprise-policy"
 
 interface WebSocketOptions extends Socket.WebSocketClientOptions {
   readonly protocols?: string | Array<string>
