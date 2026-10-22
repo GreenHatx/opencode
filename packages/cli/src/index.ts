@@ -7,7 +7,7 @@ import { getErrorReported } from "effect/Runtime"
 import { Commands } from "./commands/commands"
 import { Runtime } from "./framework/runtime"
 import { Observability } from "@opencode/util/observability"
-import { Updater } from "./services/updater"
+import { EnterpriseUpdater } from "./services/enterprise-updater"
 import { OPENCODE_ARTIFACT, OPENCODE_CHANNEL, OPENCODE_LOCAL, OPENCODE_VERSION } from "./version"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Global } from "@opencode/util/global"
@@ -27,7 +27,7 @@ if (process.env.OPENCODE_SSH_ASKPASS_PORT) {
 
 const Handlers = Runtime.handlers(Commands, {
   $: () => import("./commands/handlers/default"),
-  upgrade: () => import("./commands/handlers/upgrade"),
+  upgrade: () => import("./commands/handlers/enterprise-upgrade"),
   uninstall: () => import("./commands/handlers/uninstall"),
   acp: () => import("./commands/handlers/acp"),
   api: () => import("./commands/handlers/api"),
@@ -115,7 +115,7 @@ Effect.gen(function* () {
   ),
   Effect.annotateLogs({ role: "cli" }),
   Effect.provide(Config.layer),
-  Effect.provide(Updater.layer),
+  Effect.provide(EnterpriseUpdater.layer),
   Effect.provide(
     LayerNode.compile(LayerNode.group([Global.node, AppProcess.node, Npm.node, EffectFlock.node]), {
       replacements: [
