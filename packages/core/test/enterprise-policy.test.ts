@@ -31,12 +31,14 @@ describe("EnterprisePolicy", () => {
     )
   })
 
-  // v2 moved model discovery to https://models.opencode.ai, which the cloud blocklist already
-  // covers; this pins that the catalog host cannot be reached even if the fetch guard regressed.
+  // v2 moved model discovery to https://models.opencode.ai. Nothing patches the catalog logic: the
+  // production process client refuses OpenCode cloud hosts, which this pins for the catalog host.
   test("blocks the v2 model catalog host", () => {
     expect(isOpenCodeCloudHostname("models.opencode.ai")).toBe(true)
     expect(EnterprisePolicy.isBaseURLAllowed("https://models.opencode.ai/api.json")).toBe(false)
-    expect(EnterprisePolicy.blocksRemoteModelDiscovery()).toBe(true)
+    expect(() => EnterprisePolicy.assertOpenCodeCloudURLBlocked("https://models.opencode.ai/api.json")).toThrow(
+      "OpenCode cloud endpoint blocked: models.opencode.ai",
+    )
   })
 
   test("allows only the sanctioned install source", () => {

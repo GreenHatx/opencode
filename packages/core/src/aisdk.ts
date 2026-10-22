@@ -41,6 +41,7 @@ import type { ID, RuntimeInfo } from "./model.js"
 import { Provider } from "./provider.js"
 import { State } from "./state.js"
 import { stringify } from "./tool/runtime.js"
+import { EnterprisePolicy } from "./enterprise-policy.js"
 
 type SDK = any
 type UserContent = Extract<LanguageModelV3Message, { role: "user" }>["content"]
@@ -162,6 +163,10 @@ function prepareOptions(model: RuntimeInfo, pkg: string) {
     }
 
     const send: Fetch = isFetch(customFetch) ? customFetch : fetch
+    // AI SDK providers bypass the request executor, so requests that reach the real network are
+    // checked here. Config is JSON and cannot carry a function, so a custom fetch only exists when
+    // code injects one; production traffic always takes the global fetch and is always checked.
+    if (send === fetch) EnterprisePolicy.assertRequestURLAllowed(input instanceof Request ? input.url : input)
     const middleware = httpMiddleware.getStore()
     const res = await (
       middleware

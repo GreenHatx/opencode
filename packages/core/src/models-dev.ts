@@ -8,7 +8,6 @@ import { FSUtil } from "@opencode/util/fs-util"
 import { Bus } from "./bus.js"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { httpClient } from "@opencode/util/effect/app-node-platform"
-import { EnterprisePolicy } from "./enterprise-policy.js"
 import { Model } from "./model.js"
 import { AISDKNative } from "./aisdk-native.js"
 import { Provider } from "./provider.js"
@@ -391,9 +390,6 @@ export const layer = (options?: Options) =>
         if (cached) return normalize(cached.catalog)
         const bundled = yield* loadSnapshot
         if (bundled) return bundled
-        // Enterprise policy forbids reaching the public catalog host; the bundled snapshot above is
-        // the only catalog source, so fall through to an empty one rather than going to the network.
-        if (EnterprisePolicy.blocksRemoteModelDiscovery()) return []
         if (!fetch) return []
         const catalog = yield* lock.withPermit(
           Effect.gen(function* () {
@@ -410,7 +406,6 @@ export const layer = (options?: Options) =>
       const get = (): Effect.Effect<readonly Snapshot[]> => cachedGet
 
       const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
-        if (EnterprisePolicy.blocksRemoteModelDiscovery()) return
         yield* lock
           .withPermit(
             Effect.gen(function* () {

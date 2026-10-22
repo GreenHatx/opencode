@@ -4,6 +4,7 @@ import { HttpProxyAgent } from "http-proxy-agent"
 import { HttpsProxyAgent } from "https-proxy-agent"
 import { Layer } from "effect"
 import { Socket } from "effect/socket"
+import { EnterprisePolicy } from "../enterprise-policy.js"
 
 interface WebSocketOptions extends Socket.WebSocketClientOptions {
   readonly protocols?: string | Array<string>
@@ -56,6 +57,9 @@ const proxyAgent = (url: string, selectedProxy: string | undefined) => {
 }
 
 const layer = Layer.succeed(Socket.WebSocketConstructor, (url, input) => {
+  // WebSocket transports never pass through the HTTP client, so the egress allowlist is checked
+  // here too. Throwing is enough: the ai transport constructs sockets inside Effect.try.
+  EnterprisePolicy.assertRequestURLAllowed(url)
   const config = constructorOptions(input)
   const selectedProxy = proxy(url)
   // Keep trust on the runtime store so NODE_EXTRA_CA_CERTS remains additive.

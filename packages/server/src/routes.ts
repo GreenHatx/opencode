@@ -25,6 +25,7 @@ import { Global } from "@opencode/util/global"
 import { InstructionDiscovery } from "@opencode/core/instruction-discovery"
 import { LocationServiceMap } from "@opencode/core/location-service-map"
 import { LocationActivity } from "@opencode/core/location-activity"
+import { EnterpriseEgress } from "@opencode/core/effect/enterprise-egress"
 import { ModelsDev } from "@opencode/core/models-dev"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { PluginUpdate } from "@opencode/core/plugin/update"
@@ -114,6 +115,9 @@ function makeRoutes<AuthError, AuthServices>(
   instances?: InstanceNode,
 ) {
   const standard: LayerNode.Replacements = [
+    // Enterprise fork: OpenCode cloud hosts are unreachable from every outbound request the server
+    // makes; model traffic is narrowed further to internal hosts by the request executor.
+    httpClient.replace(EnterpriseEgress.processClient),
     Database.node.replace(Database.configured(options.database)),
     PersistentPty.node.replace(PersistentPty.configured(options.pty)),
     Bus.node.replace(Bus.configured({ persist: options.events?.persist })),

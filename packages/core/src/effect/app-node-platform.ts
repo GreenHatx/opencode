@@ -4,6 +4,7 @@ import { FetchHttpClient, HttpClient } from "effect/http"
 import { Socket } from "effect/socket"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { httpClient } from "@opencode/util/effect/app-node-platform"
+import { EnterpriseEgress } from "./enterprise-egress.js"
 import { WebSocketConstructor } from "./websocket-constructor.js"
 
 // Bun's fetch ends a request after five quiet minutes, before provider routes' own header and chunk timeouts.
@@ -20,7 +21,10 @@ const withoutBunTimeout = Layer.effect(
 
 export const requestExecutor = makeGlobalNode({
   service: RequestExecutor.Service,
-  layer: RequestExecutor.layer.pipe(Layer.provide(withoutBunTimeout)),
+  // Model requests leave the process through this client, so the internal-host allowlist is
+  // applied here rather than in packages/ai, whose tests drive the same routes against recorded
+  // public provider URLs through their own client.
+  layer: RequestExecutor.layer.pipe(Layer.provide(withoutBunTimeout), Layer.provide(EnterpriseEgress.modelTraffic)),
   deps: [httpClient],
 })
 

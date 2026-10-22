@@ -16,12 +16,10 @@ export const ALLOWED_HOSTS = [
 
 export const BLOCKED_OPENCODE_CLOUD_HOSTS = ["opencode.ai", "*.opencode.ai"] as const
 
-export const FEATURE_DISABLED_MESSAGE = "Feature disabled by administrator."
-export const DEFAULT_PROVIDER_ID = "kurumici"
-export const DEFAULT_MODEL_ID = "MiniMaxAI/MiniMax-M2.5"
-export const DEFAULT_MODEL_REF = `${DEFAULT_PROVIDER_ID}/${DEFAULT_MODEL_ID}`
-export const DEFAULT_BASE_URL = "https://llm-gateway.internal.local/v1"
-export const DEFAULT_API_KEY = "internal-token"
+// The gateway URL, API key and model are deliberately not defined here: they change too often to
+// ship in a build, so they live in user config and are collected by `opencode setup`. Only the
+// provider ID is fixed, because it is the name the provider allowlist approves.
+export const PROVIDER_ID = "kurumici"
 
 // Config schema is served from an internal host so a box-out install never references the public
 // opencode.ai domain. Overridable with OPENCODE_CONFIG_SCHEMA_URL, but the override is validated
@@ -68,11 +66,6 @@ export function isProviderAllowed(providerID: string) {
 export function assertProviderAllowed(providerID: string) {
   if (isProviderAllowed(providerID)) return
   throw new ProviderBlockedError(providerID)
-}
-
-export function isModelRefAllowed(modelRef: string | undefined) {
-  if (!modelRef) return false
-  return isProviderAllowed(modelRef.split("/")[0])
 }
 
 export function isBaseURLAllowed(baseURL: string | undefined) {
@@ -173,78 +166,6 @@ export function policyStatements() {
       effect: "allow" as const,
     })),
   ]
-}
-
-export function blocksRemoteModelDiscovery() {
-  return true
-}
-
-export function blocksUserProviderAuth() {
-  return true
-}
-
-export function blocksRemoteConfig() {
-  return true
-}
-
-export function defaultConfig(env: EnvLike = {}) {
-  return {
-    $schema: configSchemaURL(env),
-    model: DEFAULT_MODEL_REF,
-    small_model: DEFAULT_MODEL_REF,
-    policies: policyStatements(),
-    provider: {
-      [DEFAULT_PROVIDER_ID]: {
-        name: "Kurum Ici LLM",
-        npm: "@ai-sdk/openai-compatible",
-        options: {
-          baseURL: DEFAULT_BASE_URL,
-          apiKey: DEFAULT_API_KEY,
-        },
-        models: {
-          [DEFAULT_MODEL_ID]: {
-            name: DEFAULT_MODEL_ID,
-            limit: {
-              context: 32768,
-              output: 8192,
-            },
-          },
-        },
-      },
-    },
-  }
-}
-
-// Serialized form of the enterprise default config. Installers (desktop seed, Windows MSI) write
-// this verbatim so a fresh box-out install starts on the internal provider instead of an empty
-// config that only carries a schema reference.
-export function defaultConfigJSON(env: EnvLike = {}) {
-  return `${JSON.stringify(defaultConfig(env), null, 2)}\n`
-}
-
-type ConfigLike = {
-  $schema?: string
-  model?: string
-  small_model?: string
-  provider?: Record<string, unknown>
-  policies?: readonly unknown[]
-}
-
-export function applyConfigDefaults<T extends ConfigLike>(input: T, env: EnvLike = {}): T {
-  const defaults = defaultConfig(env)
-  return {
-    ...input,
-    $schema: input.$schema ?? defaults.$schema,
-    model: isModelRefAllowed(input.model) ? input.model : defaults.model,
-    small_model: isModelRefAllowed(input.small_model) ? input.small_model : defaults.small_model,
-    provider: {
-      ...defaults.provider,
-      ...(input.provider ?? {}),
-    },
-    // Appended last on purpose: decision() resolves with findLast, so the enterprise statements
-    // override anything the user added and the provider allowlist cannot be widened from config.
-    policies: [...(input.policies ?? []), ...policyStatements()],
-  }
 }
 
 function hostAllowed(hostname: string) {

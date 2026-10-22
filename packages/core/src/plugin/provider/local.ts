@@ -26,7 +26,9 @@ export function createLocalProviderPlugin<Discovered>(input: {
   readonly id: string
   readonly providerID: string
   readonly name: string
-  readonly origin: string
+  // Optional so a provider can be purely config-driven: with no origin and no configured baseURL
+  // the plugin stays inert instead of probing a guessed address.
+  readonly origin?: string
   readonly stripPathSuffix?: RegExp
   readonly discover: (client: LocalDiscoveryClient) => Effect.Effect<readonly Discovered[], unknown>
   readonly model: (item: NoInfer<Discovered>) => LocalModel
