@@ -4,6 +4,7 @@ import { Auth } from "../auth.js"
 import { render as renderEndpoint } from "../endpoint.js"
 import { Framing } from "../framing.js"
 import type { HttpMiddleware, Transport, TransportPrepareInput } from "./index.js"
+import { EnterprisePolicy } from "../../enterprise-policy.js"
 import * as ProviderShared from "../../protocols/shared.js"
 import {
   AIError,
@@ -49,6 +50,13 @@ export const jsonRequestParts = <Body>(input: JsonRequestInput<Body>) =>
       Object.entries(input.request.http.query).forEach(([key, value]) => endpoint.searchParams.set(key, value))
     }
     const url = endpoint.toString()
+    // Lowest-level egress guard: validate the fully rendered URL before any request work happens,
+    // so no provider or protocol path can reach a host outside the enterprise allowlist.
+    yield* Effect.try({
+      try: () => EnterprisePolicy.assertRequestURLAllowed(url),
+      catch: (error) =>
+        ProviderShared.invalidRequest(error instanceof Error ? error.message : "External provider blocked."),
+    })
     const body = yield* bodyWithOverlay(input.body, input.request, input.encodeBody)
     const headers = yield* Auth.toEffect(input.auth)({
       request: input.request,

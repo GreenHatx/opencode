@@ -2,6 +2,7 @@ export * as ManagedPolicy from "./managed-policy.js"
 
 import { Document, type Entry } from "@opencode/schema/config"
 import { isDeepStrictEqual } from "node:util"
+import { EnterprisePolicy } from "./enterprise-policy.js"
 import { Wildcard } from "./util/wildcard.js"
 import { ConfigPolicy } from "@opencode/schema/config/policy"
 import { Context, Effect, Layer, PubSub, Stream } from "effect"
@@ -59,6 +60,13 @@ export function statements(entries: readonly Entry[], organization: State) {
       message: organization.organization
         ? `Blocked by ${organization.organization}'s policy`
         : "Blocked by your organization's policy",
+    })),
+    // Enterprise statements are appended last so decision()'s findLast resolves to them: the
+    // provider allowlist is a build-time boundary of this fork and must not be widened by user
+    // config or by whatever a connected console sends.
+    ...EnterprisePolicy.policyStatements().map((policy) => ({
+      ...policy,
+      message: EnterprisePolicy.FEATURE_DISABLED_MESSAGE,
     })),
   ]
 }

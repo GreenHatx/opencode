@@ -8,6 +8,7 @@ import {
   type HttpContext,
   type TransportOperation,
 } from "../../schema/index.js"
+import { EnterprisePolicy } from "../../enterprise-policy.js"
 import type { ChannelObservation, WebSocketChannelExecutor } from "./websocket-channel.js"
 
 export interface WebSocketRequest {
@@ -178,6 +179,20 @@ export const toWebSocketUrl = (value: string) =>
 export const open = (input: WebSocketRequest) =>
   Effect.gen(function* () {
     const constructor = yield* Socket.WebSocketConstructor
+    // WebSocket is a second egress path that never passes through jsonRequestParts, so the
+    // allowlist is checked here too, before the socket is opened.
+    yield* Effect.try({
+      try: () => EnterprisePolicy.assertRequestURLAllowed(input.url),
+      catch: (error) =>
+        transportError(error instanceof Error ? error.message : "External provider blocked.", {
+          cause: error,
+          url: input.url,
+          operation: "request",
+          code: "invalid-url",
+          phase: "prepare",
+          delivery: "not-sent",
+        }),
+    })
     const ws = yield* Effect.try({
       try: () => constructor(input.url, { headers: input.headers }),
       catch: (error) =>
