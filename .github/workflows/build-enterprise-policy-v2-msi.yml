@@ -2,6 +2,11 @@ name: build-enterprise-policy-v2-msi
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - enterprise-v2-msi
+    paths:
+      - ".github/workflows/build-enterprise-policy-v2-msi.yml"
 
 permissions:
   contents: read
