@@ -150,10 +150,12 @@ jobs:
           }
 
           $exe = Join-Path $bin "opencode.exe"
+          # The CLI prints its version as "opencode v<version>".
+          $expected = "opencode v$env:VERSION"
           $installed = (& $exe --version | Out-String).Trim()
-          if ($installed -ne $env:VERSION) { throw "Expected version $env:VERSION, got '$installed'" }
+          if ($installed -ne $expected) { throw "Expected '$expected', got '$installed'" }
           $alias = (& (Join-Path $bin "opencode-private.cmd") --version | Out-String).Trim()
-          if ($alias -ne $env:VERSION) { throw "opencode-private.cmd reported '$alias'" }
+          if ($alias -ne $expected) { throw "opencode-private.cmd reported '$alias'" }
 
           # Proves this is the enterprise build: a public build would try to update itself.
           $upgrade = (& $exe upgrade 2>&1 | Out-String)
