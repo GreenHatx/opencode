@@ -31,6 +31,7 @@ async function signWindows(configuration: { path: string }) {
   if (process.platform !== "win32") return
 
   if (process.env.GITHUB_ACTIONS !== "true") return
+  if (process.env.OPENCODE_WINDOWS_SIGNING === "false") return
 
   await execFileAsync(
     "pwsh",
@@ -68,6 +69,11 @@ const APP_IDS = {
   beta: "ai.opencode.desktop.beta",
   prod: "ai.opencode.desktop",
 } as const
+
+const windowsTargets = (process.env.OPENCODE_WINDOWS_TARGETS ?? "nsis")
+  .split(",")
+  .map((target) => target.trim())
+  .filter(Boolean)
 
 const getBase = (appId: string): Configuration => {
   const target = getCurrentCli()
@@ -185,7 +191,7 @@ const getBase = (appId: string): Configuration => {
       signtoolOptions: {
         sign: signWindows,
       },
-      target: ["nsis"],
+      target: windowsTargets,
       verifyUpdateCodeSignature: false,
     },
     nsis: {
