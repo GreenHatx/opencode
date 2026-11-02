@@ -162,6 +162,8 @@ jobs:
           Write-Host "opencode upgrade exited $LASTEXITCODE"
           if ($upgrade -notmatch "does not update itself") { throw "opencode upgrade did not refuse:`n$upgrade" }
           Write-Host "Installed OpenCode Private $installed; self-update is disabled."
+          # The refused upgrade leaves LASTEXITCODE at 1, which the runner would report as the step's result.
+          exit 0
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
