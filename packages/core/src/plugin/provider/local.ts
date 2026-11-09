@@ -30,6 +30,8 @@ export function createLocalProviderPlugin<Discovered>(input: {
   // the plugin stays inert instead of probing a guessed address.
   readonly origin?: string
   readonly stripPathSuffix?: RegExp
+  // Local servers answer in milliseconds; a remote gateway needs longer for its TLS handshake alone.
+  readonly discoveryTimeout?: Duration.Input
   readonly discover: (client: LocalDiscoveryClient) => Effect.Effect<readonly Discovered[], unknown>
   readonly model: (item: NoInfer<Discovered>) => LocalModel
 }) {
@@ -109,7 +111,9 @@ export function createLocalProviderPlugin<Discovered>(input: {
                 apiKey: current.apiKey,
                 models: cached && cached.apiKey === current.apiKey ? cached.models : undefined,
               })
-              const models = yield* input.discover(createClient(http, current.root, current.apiKey, current.endpoint))
+              const models = yield* input.discover(
+                createClient(http, current.root, current.apiKey, current.endpoint, input.discoveryTimeout),
+              )
               discovery.set(current.root, { checked: Date.now(), apiKey: current.apiKey, models })
               return { source: current, models }
             }),
@@ -159,6 +163,7 @@ function createClient(
   root: string,
   apiKey: string | undefined,
   endpoint: (path: string) => string,
+  timeout: Duration.Input = "1 second",
 ) {
   const auth = (request: HttpClientRequest.HttpClientRequest) =>
     apiKey
@@ -167,11 +172,11 @@ function createClient(
   return {
     root,
     apiKey,
-    get: (path: string) => http.execute(auth(HttpClientRequest.get(endpoint(path)))).pipe(Effect.timeout("1 second")),
+    get: (path: string) => http.execute(auth(HttpClientRequest.get(endpoint(path)))).pipe(Effect.timeout(timeout)),
     getJson: <A, I>(path: string, schema: Schema.Codec<A, I>) =>
       http
         .execute(auth(HttpClientRequest.get(endpoint(path))))
-        .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(schema)), Effect.timeout("1 second")),
+        .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(schema)), Effect.timeout(timeout)),
     postJson: <B, BI, A, AI>(
       path: string,
       bodySchema: Schema.Codec<B, BI>,
@@ -182,7 +187,7 @@ function createClient(
         HttpClientRequest.schemaBodyJson(bodySchema)(body),
         Effect.flatMap(http.execute),
         Effect.flatMap(HttpClientResponse.schemaBodyJson(responseSchema)),
-        Effect.timeout("1 second"),
+        Effect.timeout(timeout),
       ),
   }
 }

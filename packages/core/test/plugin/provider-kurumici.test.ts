@@ -86,6 +86,37 @@ describe("KurumiciPlugin", () => {
     ),
   )
 
+  // A remote gateway is not a local server: its TLS handshake alone can exceed the one second
+  // upstream allows local providers. Discovery that times out leaves the provider unregistered, so
+  // the configured model never resolves even though `opencode setup` could list it.
+  it.live("waits for a gateway that answers slower than a local server", () =>
+    Effect.acquireUseRelease(
+      Effect.sync(() =>
+        Bun.serve({
+          port: 0,
+          fetch: async () => {
+            await Bun.sleep(1_500)
+            return Response.json({ object: "list", data: [{ id: "openai/glm-4.7-flash", object: "model" }] })
+          },
+        }),
+      ),
+      (server) =>
+        Effect.gen(function* () {
+          const models = yield* Model.Service
+          const config = yield* Config.Test
+          yield* config.setEntries([configuration({ baseURL: `http://127.0.0.1:${server.port}/v1`, apiKey: "secret" })])
+          yield* addPlugin()
+
+          const model = yield* eventually(
+            models.get(providerID, Model.ID.make("openai/glm-4.7-flash")),
+            (item) => item !== undefined,
+          )
+          expect(model?.modelID).toBe(Model.ID.make("openai/glm-4.7-flash"))
+        }),
+      (server) => Effect.promise(() => server.stop(true)),
+    ),
+  )
+
   // Discovery uses core's HttpClient, which the packages/ai egress guard never sees, so the plugin
   // checks the allowlist itself. A recording client shows whether any request was attempted,
   // without racing the plugin's background polling.
