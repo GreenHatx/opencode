@@ -133,6 +133,13 @@ export const TuiThreadCommand = cmd({
     }
     const noReplay = args.replay === false || args.noReplay === true
 
+    // Enterprise fork: the gateway is configured per user, so the first interactive launch walks
+    // through it before anything starts. Declining still opens OpenCode; `opencode setup` reruns it.
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      const { EnterpriseSetup } = await import("../enterprise-setup")
+      if (!(await EnterpriseSetup.configured())) await EnterpriseSetup.run().catch((error) => UI.error(errorMessage(error)))
+    }
+
     if (args.mini) {
       const network = ["--port", "--hostname", "--mdns", "--no-mdns", "--mdns-domain", "--cors"].find((option) =>
         process.argv.some((arg) => arg === option || arg.startsWith(option + "=")),

@@ -7,6 +7,7 @@ import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { UninstallCommand } from "./cli/cmd/uninstall"
+import { SetupCommand } from "./cli/cmd/setup"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
@@ -90,6 +91,7 @@ const cli = yargs(args)
   .command(AgentCommand)
   .command(UpgradeCommand)
   .command(UninstallCommand)
+  .command(SetupCommand)
   .command(ServeCommand)
   .command(WebCommand)
   .command(ModelsCommand)
