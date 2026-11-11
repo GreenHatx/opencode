@@ -304,29 +304,32 @@ it.instance("loads config with defaults when no files exist", () =>
   }),
 )
 
-configIt().effect("seeds enterprise provider defaults when no user config exists", () =>
+// The gateway and model come from `opencode setup`; config loading must not invent either.
+configIt().effect("does not invent a provider or model when no user config exists", () =>
   withGlobalConfig({ config: undefined }, ({ dir }) =>
     withInstanceDir(
       dir,
       Effect.gen(function* () {
         const config = yield* Config.use.get()
-        expect(config.model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
-        expect(config.small_model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
-        expect(config.provider?.kurumici?.options?.baseURL).toBe("https://llm-gateway.internal.local/v1")
-        expect(config.provider?.kurumici?.models?.["MiniMaxAI/MiniMax-M2.5"]).toBeDefined()
+        expect(config.model).toBeUndefined()
+        expect(config.small_model).toBeUndefined()
+        expect(config.provider?.kurumici).toBeUndefined()
+        expect(config.$schema).toBe("https://schemas.internal.local/opencode/config.json")
       }),
     ),
   ),
 )
 
-configIt().effect("resets blocked configured models to the enterprise default", () =>
-  withGlobalConfig({ config: { model: "openai/gpt-5", small_model: "anthropic/claude-haiku" } }, ({ dir }) =>
+// A model on a non-approved provider used to be replaced with a hardcoded default here, which
+// looked like the config being ignored. It is kept as written; the provider layer rejects it loudly.
+configIt().effect("keeps the configured model instead of silently replacing it", () =>
+  withGlobalConfig({ config: { model: "openai/gpt-5", small_model: "kurumici/openai/glm-4.7-flash" } }, ({ dir }) =>
     withInstanceDir(
       dir,
       Effect.gen(function* () {
         const config = yield* Config.use.get()
-        expect(config.model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
-        expect(config.small_model).toBe("kurumici/MiniMaxAI/MiniMax-M2.5")
+        expect(config.model).toBe("openai/gpt-5")
+        expect(config.small_model).toBe("kurumici/openai/glm-4.7-flash")
       }),
     ),
   ),
@@ -352,7 +355,7 @@ it.effect("creates global jsonc config with schema when no global configs exist"
       yield* Config.use.get().pipe(provideInstanceEffect(dir))
 
       const content = yield* FSUtil.use.readFileString(path.join(dir, "opencode.jsonc"))
-      expect(content).toContain('"$schema": "https://opencode.ai/config.json"')
+      expect(content).toContain('"$schema": "https://schemas.internal.local/opencode/config.json"')
     }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
   ),
 )

@@ -236,22 +236,27 @@ jobs:
           where.exe opencode
           & (Join-Path $privateBin "opencode-private.cmd") --version
 
-          # Prove the installed shim seeds the packaged enterprise config, not a bare schema stub.
+          # The shim seeds only the schema reference; the gateway and model come from `opencode setup`.
           # Compared against the installed seed itself so this check never restates policy values.
           $seeded = Join-Path $env:USERPROFILE ".config\opencode.json"
-          if (!(Test-Path $seeded)) { throw "Enterprise config was not seeded at $seeded" }
+          if (!(Test-Path $seeded)) { throw "Config was not seeded at $seeded" }
           $packaged = Join-Path $env:LOCALAPPDATA "OpenCode Private\config\opencode.default.json"
-          if (!(Test-Path $packaged)) { throw "Packaged enterprise config seed missing at $packaged" }
+          if (!(Test-Path $packaged)) { throw "Packaged config seed missing at $packaged" }
           if ((Get-Content $seeded -Raw) -ne (Get-Content $packaged -Raw)) {
-            throw "Seeded user config does not match the packaged enterprise default."
+            throw "Seeded user config does not match the packaged default."
           }
           $config = Get-Content $seeded -Raw | ConvertFrom-Json
-          if (-not $config.model) { throw "Seeded config has no model" }
-          if (-not $config.provider) { throw "Seeded config has no provider" }
           if ($config.'$schema' -notlike "https://schemas.internal.local/*") {
             throw "Seeded config schema is not internal: $($config.'$schema')"
           }
-          Write-Host "Enterprise policy config seeded correctly: $($config.model)"
+          if ($config.model -or $config.provider) { throw "The seed must not carry a model or provider." }
+
+          # Proves this is the enterprise build: a public build would try to update itself.
+          $upgrade = (& (Join-Path $privateBin "opencode-private.cmd") upgrade 2>&1 | Out-String)
+          if ($upgrade -notmatch "does not update itself") { throw "opencode upgrade did not refuse:`n$upgrade" }
+          Write-Host "Seed carries no gateway; self-update is disabled."
+          # The refused upgrade leaves LASTEXITCODE non-zero, which the runner would report as the step's result.
+          exit 0
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

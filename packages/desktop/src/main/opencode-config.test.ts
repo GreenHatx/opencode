@@ -21,10 +21,8 @@ test("seeds the Windows user opencode config", () => {
     expect(filepath).toBe(join(home, ".config", "opencode.json"))
     expect(env.OPENCODE_CONFIG).toBe(filepath)
     const seeded = JSON.parse(readFileSync(filepath!, "utf8"))
-    expect(seeded).toEqual(EnterprisePolicy.defaultConfig())
-    expect(seeded.$schema).toBe("https://schemas.internal.local/opencode/config.json")
-    expect(seeded.model).toBe(EnterprisePolicy.DEFAULT_MODEL_REF)
-    expect(Object.keys(seeded.provider)).toEqual([EnterprisePolicy.DEFAULT_PROVIDER_ID])
+    // Only the schema: the gateway and model come from `opencode setup`, never from a seed.
+    expect(seeded).toEqual({ $schema: "https://schemas.internal.local/opencode/config.json" })
   } finally {
     rmSync(home, { recursive: true, force: true })
   }

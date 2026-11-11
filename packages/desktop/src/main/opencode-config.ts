@@ -23,9 +23,8 @@ export function ensureWindowsUserConfigSeed(input?: {
 
   mkdirSync(join(home, ".config"), { recursive: true })
   if (!existsSync(filepath)) {
-    // Seed the full enterprise default (internal provider, model and schema host) rather than a
-    // bare $schema, so a box-out install is usable without the user configuring a provider — and
-    // so it can never reference the public opencode.ai domain.
+    // Seed the internal schema host so a box-out install never references the public opencode.ai
+    // domain. The gateway and model are not seeded; `opencode setup` collects them.
     writeFileSync(filepath, EnterprisePolicy.defaultConfigJSON(env), { flag: "wx" })
   }
 

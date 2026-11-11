@@ -17,11 +17,14 @@ export const ALLOWED_HOSTS = [
 export const BLOCKED_OPENCODE_CLOUD_HOSTS = ["opencode.ai", "*.opencode.ai"] as const
 
 export const FEATURE_DISABLED_MESSAGE = "Feature disabled by administrator."
-export const DEFAULT_PROVIDER_ID = "kurumici"
-export const DEFAULT_MODEL_ID = "MiniMaxAI/MiniMax-M2.5"
-export const DEFAULT_MODEL_REF = `${DEFAULT_PROVIDER_ID}/${DEFAULT_MODEL_ID}`
-export const DEFAULT_BASE_URL = "https://llm-gateway.internal.local/v1"
-export const DEFAULT_API_KEY = "internal-token"
+// The gateway URL, API key and models are deliberately not defined here: they change too often to
+// ship in a build, so they live in user config and are collected by `opencode setup`. Only the
+// provider ID is fixed, because it is the name the provider allowlist approves.
+export const PROVIDER_ID = "kurumici"
+export const PROVIDER_NAME = "Kurum Ici LLM"
+
+export const SELF_UPDATE_DISABLED_MESSAGE =
+  "This OpenCode build is managed by your organization and does not update itself. Install new versions from your organization's distribution."
 
 // Config schema is served from an internal host so a box-out install never references the public
 // opencode.ai domain. Overridable with OPENCODE_CONFIG_SCHEMA_URL, but the override is validated
@@ -68,11 +71,6 @@ export function isProviderAllowed(providerID: string) {
 export function assertProviderAllowed(providerID: string) {
   if (isProviderAllowed(providerID)) return
   throw new ProviderBlockedError(providerID)
-}
-
-export function isModelRefAllowed(modelRef: string | undefined) {
-  if (!modelRef) return false
-  return isProviderAllowed(modelRef.split("/")[0])
 }
 
 export function isBaseURLAllowed(baseURL: string | undefined) {
@@ -173,58 +171,26 @@ export function blocksRemoteConfig() {
 }
 
 export function defaultConfig(env: EnvLike = {}) {
-  return {
-    $schema: configSchemaURL(env),
-    model: DEFAULT_MODEL_REF,
-    small_model: DEFAULT_MODEL_REF,
-    provider: {
-      [DEFAULT_PROVIDER_ID]: {
-        name: "Kurum Ici LLM",
-        npm: "@ai-sdk/openai-compatible",
-        options: {
-          baseURL: DEFAULT_BASE_URL,
-          apiKey: DEFAULT_API_KEY,
-        },
-        models: {
-          [DEFAULT_MODEL_ID]: {
-            name: DEFAULT_MODEL_ID,
-            limit: {
-              context: 32768,
-              output: 8192,
-            },
-          },
-        },
-      },
-    },
-  }
+  return { $schema: configSchemaURL(env) }
 }
 
-// Serialized form of the enterprise default config. Installers (desktop seed, Windows MSI) write
-// this verbatim so a fresh box-out install starts on the internal provider instead of an empty
-// config that only carries a schema reference.
+// Serialized form of the config installers seed (desktop, Windows MSI). It carries no provider or
+// model on purpose: those come from `opencode setup`, so a seed can never go stale against the gateway.
 export function defaultConfigJSON(env: EnvLike = {}) {
   return `${JSON.stringify(defaultConfig(env), null, 2)}\n`
 }
 
-type ConfigLike = {
-  $schema?: string
-  model?: string
-  small_model?: string
-  provider?: Record<string, unknown>
+// Only fills in the schema reference. It used to replace a model on a non-approved provider with a
+// hardcoded default, which silently discarded what the user configured; the provider layer already
+// rejects such a model with an explicit error.
+export function applyConfigDefaults<T extends { $schema?: string }>(input: T, env: EnvLike = {}): T {
+  return { ...input, $schema: input.$schema ?? configSchemaURL(env) }
 }
 
-export function applyConfigDefaults<T extends ConfigLike>(input: T, env: EnvLike = {}): T {
-  const defaults = defaultConfig(env)
-  return {
-    ...input,
-    $schema: input.$schema ?? defaults.$schema,
-    model: isModelRefAllowed(input.model) ? input.model : defaults.model,
-    small_model: isModelRefAllowed(input.small_model) ? input.small_model : defaults.small_model,
-    provider: {
-      ...defaults.provider,
-      ...(input.provider ?? {}),
-    },
-  }
+// Enterprise builds must never replace themselves with a public release: every upgrade path
+// (npm, bun, brew, choco, scoop, and the install script's default release repo) installs one.
+export function blocksSelfUpdate() {
+  return true
 }
 
 function hostAllowed(hostname: string) {

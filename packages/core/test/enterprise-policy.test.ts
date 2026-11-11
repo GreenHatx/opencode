@@ -71,12 +71,27 @@ describe("EnterprisePolicy", () => {
     ).toBe("https://schemas.internal.local/v2.json")
   })
 
-  test("serializes a usable enterprise default config for installers", () => {
-    const seed = JSON.parse(EnterprisePolicy.defaultConfigJSON())
-    expect(seed.$schema).toBe(EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL)
-    expect(seed.model).toBe(EnterprisePolicy.DEFAULT_MODEL_REF)
-    expect(seed.small_model).toBe(EnterprisePolicy.DEFAULT_MODEL_REF)
-    expect(seed.provider[EnterprisePolicy.DEFAULT_PROVIDER_ID].options.baseURL).toBe(EnterprisePolicy.DEFAULT_BASE_URL)
+  // The gateway, key and model are collected by `opencode setup`, so nothing an installer seeds may
+  // name a provider or model: a seeded one goes stale and gets sent to a gateway that rejects it.
+  test("seeds only the schema reference", () => {
+    expect(JSON.parse(EnterprisePolicy.defaultConfigJSON())).toEqual({
+      $schema: EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL,
+    })
     expect(EnterprisePolicy.defaultConfigJSON().endsWith("\n")).toBe(true)
+  })
+
+  test("keeps the model the user configured", () => {
+    const config = { model: "kurumici/openai/glm-4.7-flash", small_model: "openai/gpt-5" }
+    expect(EnterprisePolicy.applyConfigDefaults(config)).toEqual({
+      ...config,
+      $schema: EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL,
+    })
+    expect(EnterprisePolicy.applyConfigDefaults({ $schema: "https://schemas.internal.local/x.json" }).$schema).toBe(
+      "https://schemas.internal.local/x.json",
+    )
+  })
+
+  test("refuses self-update", () => {
+    expect(EnterprisePolicy.blocksSelfUpdate()).toBe(true)
   })
 })
