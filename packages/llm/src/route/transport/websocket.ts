@@ -1,5 +1,6 @@
 import { Cause, Context, Effect, Layer, Queue, Stream } from "effect"
 import { Headers } from "effect/unstable/http"
+import { EnterprisePolicy } from "../../enterprise-policy"
 import { LLMError, TransportReason } from "../../schema"
 import * as HttpTransport from "./http"
 import type { Transport } from "./index"
@@ -124,8 +125,14 @@ const webSocketUrl = (value: string) =>
 
 export const open = (input: WebSocketRequest) =>
   Effect.try({
-    try: () =>
-      new (globalThis.WebSocket as unknown as WebSocketConstructorWithHeaders)(input.url, { headers: input.headers }),
+    try: () => {
+      // WebSocket requests never pass through jsonRequestParts, so the egress allowlist is checked
+      // here as well, before a socket to the host exists.
+      EnterprisePolicy.assertRequestURLAllowed(input.url)
+      return new (globalThis.WebSocket as unknown as WebSocketConstructorWithHeaders)(input.url, {
+        headers: input.headers,
+      })
+    },
     catch: (error) =>
       transportError("open", error instanceof Error ? error.message : "Failed to construct WebSocket", {
         url: input.url,

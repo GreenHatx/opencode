@@ -3,6 +3,8 @@ import { Effect, Exit } from "effect"
 import { Endpoint } from "../src/route"
 import { Auth } from "../src/route/auth"
 import { jsonRequestParts } from "../src/route/transport/http"
+import { open } from "../src/route/transport/websocket"
+import { Headers } from "effect/unstable/http"
 import * as OpenAIChat from "../src/protocols/openai-chat"
 import { LLM, Model } from "../src"
 import { it } from "./lib/effect"
@@ -58,6 +60,18 @@ describe("EnterprisePolicy", () => {
       })
 
       expect(parts.url).toBe("https://llm-gateway.internal.local/v1/chat/completions")
+    }),
+  )
+
+  // The .invalid host never resolves, so without the guard this would fail with a connection
+  // error (or hang until the test times out), never with the policy message.
+  it.effect("blocks external WebSocket hosts before a socket is opened", () =>
+    Effect.gen(function* () {
+      const error = yield* open({ url: "wss://api.example.invalid/v1/realtime", headers: Headers.empty }).pipe(
+        Effect.flip,
+      )
+
+      expect(String(error.reason.message)).toContain("External provider blocked: api.example.invalid")
     }),
   )
 })
