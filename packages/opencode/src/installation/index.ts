@@ -340,7 +340,26 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
   }),
 )
 
-export const defaultLayer = layer.pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(AppProcess.defaultLayer))
+// Enterprise builds must never replace themselves with a public release, and every upgrade path
+// installs one: npm/pnpm/bun fetch opencode-ai, brew/choco/scoop their public packages, and the
+// install script defaults to the upstream release repo. Production wiring (defaultLayer and node)
+// goes through this wrapper; `layer` itself is untouched so its own tests keep exercising it.
+const enterpriseLayer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const inner = yield* Service
+    if (!EnterprisePolicy.blocksSelfUpdate()) return inner
+    return Service.of({
+      ...inner,
+      upgrade: () => Effect.fail(new UpgradeFailedError({ stderr: EnterprisePolicy.SELF_UPDATE_DISABLED_MESSAGE })),
+    })
+  }),
+).pipe(Layer.provide(layer))
+
+export const defaultLayer = enterpriseLayer.pipe(
+  Layer.provide(FetchHttpClient.layer),
+  Layer.provide(AppProcess.defaultLayer),
+)
 
 const { runPromise } = makeRuntime(Service, defaultLayer)
 
@@ -348,6 +367,6 @@ export const latest = (...args: Parameters<Interface["latest"]>) => runPromise((
 export const method = () => runPromise((s) => s.method())
 export const upgrade = (...args: Parameters<Interface["upgrade"]>) => runPromise((s) => s.upgrade(...args))
 
-export const node = LayerNode.make(layer, [httpClient, AppProcess.node])
+export const node = LayerNode.make(enterpriseLayer, [httpClient, AppProcess.node])
 
 export * as Installation from "."

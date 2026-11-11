@@ -3,6 +3,7 @@ import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 import { Installation } from "../../installation"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 export const UpgradeCommand = {
   command: "upgrade [target]",
@@ -21,6 +22,12 @@ export const UpgradeCommand = {
       })
   },
   handler: async (args: { target?: string; method?: string }) => {
+    // Refuse up front, before detecting an install method or asking a public registry for a version.
+    if (EnterprisePolicy.blocksSelfUpdate()) {
+      UI.error(EnterprisePolicy.SELF_UPDATE_DISABLED_MESSAGE)
+      process.exitCode = 1
+      return
+    }
     UI.empty()
     UI.println(UI.logo("  "))
     UI.empty()

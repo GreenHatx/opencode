@@ -4,8 +4,12 @@ import { Flag } from "@opencode-ai/core/flag/flag"
 import { Installation } from "@/installation"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { GlobalBus } from "@/bus/global"
+import { EnterprisePolicy } from "@opencode-ai/core/enterprise-policy"
 
 export async function upgrade() {
+  // No background check either: it would query public registries and tell the user an update is
+  // available that this build will refuse to install.
+  if (EnterprisePolicy.blocksSelfUpdate()) return
   const config = await AppRuntime.runPromise(Config.Service.use((cfg) => cfg.getGlobal()))
   if (config.autoupdate === false || Flag.OPENCODE_DISABLE_AUTOUPDATE) return
   const method = await Installation.method()
