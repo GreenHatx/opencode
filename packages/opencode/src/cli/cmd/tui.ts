@@ -137,7 +137,8 @@ export const TuiThreadCommand = cmd({
     // through it before anything starts. Declining still opens OpenCode; `opencode setup` reruns it.
     if (process.stdin.isTTY && process.stdout.isTTY) {
       const { EnterpriseSetup } = await import("../enterprise-setup")
-      if (!(await EnterpriseSetup.configured())) await EnterpriseSetup.run().catch((error) => UI.error(errorMessage(error)))
+      if (!(await EnterpriseSetup.configured()))
+        await EnterpriseSetup.run().catch((error) => UI.error(errorMessage(error)))
     }
 
     if (args.mini) {

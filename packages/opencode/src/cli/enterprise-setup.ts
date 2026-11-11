@@ -77,7 +77,9 @@ export async function listModels(url: string, apiKey: string) {
   const data = typeof body === "object" && body !== null && "data" in body && Array.isArray(body.data) ? body.data : []
   return data
     .flatMap((item: unknown) =>
-      typeof item === "object" && item !== null && "id" in item && typeof item.id === "string" && item.id ? [item.id] : [],
+      typeof item === "object" && item !== null && "id" in item && typeof item.id === "string" && item.id
+        ? [item.id]
+        : [],
     )
     .toSorted((a, b) => a.localeCompare(b))
 }

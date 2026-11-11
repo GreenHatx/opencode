@@ -87,7 +87,10 @@ describe("EnterpriseSetup config", () => {
 `,
     )
 
-    await EnterpriseSetup.write({ baseURL: "https://gw.internal.local/v1", apiKey: "", model: "typed", models: [] }, file)
+    await EnterpriseSetup.write(
+      { baseURL: "https://gw.internal.local/v1", apiKey: "", model: "typed", models: [] },
+      file,
+    )
     const text = await fs.readFile(file, "utf8")
     const written = ConfigParse.jsonc(text, file) as Record<string, any>
 
@@ -106,7 +109,9 @@ describe("EnterpriseSetup.listModels", () => {
       port: 0,
       fetch: (request) => {
         seen.push(request.headers.get("authorization"))
-        return Response.json({ data: [{ id: "zeta" }, { id: "" }, { object: "model" }, { id: "openai/glm-4.7-flash" }] })
+        return Response.json({
+          data: [{ id: "zeta" }, { id: "" }, { object: "model" }, { id: "openai/glm-4.7-flash" }],
+        })
       },
     })
     try {

@@ -81,7 +81,10 @@ describe("EnterprisePolicy", () => {
   })
 
   test("keeps the model the user configured", () => {
-    const config = { model: "kurumici/openai/glm-4.7-flash", small_model: "openai/gpt-5" }
+    const config: { $schema?: string; model: string; small_model: string } = {
+      model: "kurumici/openai/glm-4.7-flash",
+      small_model: "openai/gpt-5",
+    }
     expect(EnterprisePolicy.applyConfigDefaults(config)).toEqual({
       ...config,
       $schema: EnterprisePolicy.DEFAULT_CONFIG_SCHEMA_URL,
