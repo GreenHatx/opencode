@@ -363,13 +363,38 @@ test("parseModel handles model IDs with slashes", () => {
   expect(String(result.modelID)).toBe("anthropic/claude-3-opus")
 })
 
-it.instance("defaultModel returns first available model when no config set", () =>
+// The enterprise build ships no gateway: until `opencode setup` writes one there is no provider at
+// all, even with a public provider's key in the environment.
+it.instance("defaultModel reports no providers until a gateway is configured", () =>
   Effect.gen(function* () {
     yield* setProcessEnv("ANTHROPIC_API_KEY", "test-api-key")
-    const model = yield* Provider.use.defaultModel()
-    expect(model.providerID).toBeDefined()
-    expect(model.modelID).toBeDefined()
+    const error = yield* Provider.use.defaultModel().pipe(Effect.flip)
+    expect(error).toBeInstanceOf(Provider.NoProvidersError)
   }),
+)
+
+// The exact shape `opencode setup` writes, including a gateway model ID that contains a slash.
+it.instance(
+  "defaultModel resolves the gateway model that setup configured",
+  Effect.gen(function* () {
+    const model = yield* Provider.use.defaultModel()
+    expect(String(model.providerID)).toBe("kurumici")
+    expect(String(model.modelID)).toBe("openai/glm-4.7-flash")
+  }),
+  {
+    config: {
+      model: "kurumici/openai/glm-4.7-flash",
+      small_model: "kurumici/openai/glm-4.7-flash",
+      provider: {
+        kurumici: {
+          name: "Kurum Ici LLM",
+          npm: "@ai-sdk/openai-compatible",
+          options: { baseURL: "https://llm-gateway.internal.local/v1", apiKey: "secret" },
+          models: { "openai/glm-4.7-flash": { name: "openai/glm-4.7-flash" } },
+        },
+      },
+    },
+  },
 )
 
 it.instance(
